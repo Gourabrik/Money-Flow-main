@@ -1435,19 +1435,19 @@ function updateMonthlyReport() {
         document.getElementById('monthly-categories').innerHTML = Object.entries(categoryTotals)
             .sort(([, a], [, b]) => b - a)
             .map(([category, total]) => {
-                const percentage = (total / monthlyExpenses.reduce((sum, exp) => sum + exp.amount, 0)) * 100;
-                return '<div class="glass-card p-4">' +
-                    '<div class="flex justify-between items-center mb-3">' +
-                    '<span class="category-badge category-' + category + '">' +
-                    '<i class="fas ' + getCategoryIcon(category) + '"></i>' +
-                    category +
-                    '</span>' +
-                    '<span class="text-red-600 font-semibold">₹' + Math.floor(total) + '</span>' +
+                const totalMonthly = monthlyExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+                const percentage = (total / totalMonthly) * 100;
+                const icon = getCategoryIcon(category);
+                return '<div class="flex flex-col items-center justify-between p-3 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow aspect-square">' +
+                    '<div class="w-10 h-10 rounded-xl bg-pink-50 flex items-center justify-center mb-2">' +
+                    '<i class="fas ' + icon + ' text-pink-500 text-lg"></i>' +
                     '</div>' +
-                    '<div class="w-full bg-gray-200 rounded-full h-3">' +
-                    '<div class="progress-bar h-3 rounded-full category-' + category + '" style="width: ' + percentage + '%"></div>' +
+                    '<span class="text-xs font-semibold text-gray-700 text-center leading-tight truncate w-full text-center">' + category + '</span>' +
+                    '<span class="text-sm font-bold text-red-500 mt-1">₹' + Math.floor(total) + '</span>' +
+                    '<div class="w-full bg-gray-100 rounded-full h-1.5 mt-2">' +
+                    '<div class="h-1.5 rounded-full bg-gradient-to-r from-pink-400 to-purple-500" style="width: ' + percentage.toFixed(0) + '%"></div>' +
                     '</div>' +
-                    '<div class="text-xs text-gray-600 mt-2 text-right">' + percentage.toFixed(1) + '% of total</div>' +
+                    '<span class="text-[10px] text-gray-400 mt-1">' + percentage.toFixed(0) + '%</span>' +
                     '</div>';
             }).join('');
     }
@@ -1654,67 +1654,96 @@ function init() {
 
 // Price History Chart
 let priceHistoryChartInstance = null;
+let currentHistoryFilter = 'all'; // 'all' | 'weekly' | 'monthly'
 
-// Function to update the price history chart - optimized
+// Switch history chart filter (All / Weekly / Monthly)
+function switchHistoryFilter(filter) {
+    currentHistoryFilter = filter;
+
+    // Update button styles
+    const btns = document.querySelectorAll('.history-filter-btn');
+    btns.forEach(btn => {
+        btn.classList.remove('bg-purple-500', 'text-white', 'shadow');
+        btn.classList.add('text-gray-600');
+    });
+    const active = document.getElementById('filter-' + filter + '-btn');
+    if (active) {
+        active.classList.add('bg-purple-500', 'text-white', 'shadow');
+        active.classList.remove('text-gray-600');
+    }
+
+    updatePriceHistoryChart();
+}
+
+// Get Monday of a given date's week (ISO week start)
+function getWeekStart(dateStr) {
+    const d = new Date(dateStr);
+    const day = d.getDay(); // 0=Sun, 1=Mon ...
+    const diff = (day === 0 ? -6 : 1 - day); // adjust to Monday
+    d.setDate(d.getDate() + diff);
+    const yr = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    return `${yr}-${mo}-${da}`;
+}
+
+// Format a date string as readable label
+function formatGroupLabel(key, filter) {
+    if (filter === 'monthly') {
+        const [yr, mo] = key.split('-');
+        const d = new Date(parseInt(yr), parseInt(mo) - 1, 1);
+        return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+    } else if (filter === 'weekly') {
+        const d = new Date(key);
+        return 'Wk of ' + d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    }
+    return formatDate(key); // per-day label
+}
+
 function updatePriceHistoryChart() {
     const transactions = getAllTransactions();
 
     // Show/hide empty state
     if (transactions.length === 0) {
-        if (elements.historyChartEmpty) {
-            elements.historyChartEmpty.classList.remove('hidden');
-        }
-        if (priceHistoryChartInstance) {
-            priceHistoryChartInstance.destroy();
-            priceHistoryChartInstance = null;
-        }
+        if (elements.historyChartEmpty) elements.historyChartEmpty.classList.remove('hidden');
+        if (priceHistoryChartInstance) { priceHistoryChartInstance.destroy(); priceHistoryChartInstance = null; }
         return;
     }
+    if (elements.historyChartEmpty) elements.historyChartEmpty.classList.add('hidden');
 
-    if (elements.historyChartEmpty) {
-        elements.historyChartEmpty.classList.add('hidden');
-    }
-
-    // Sort transactions by date (oldest first)
+    // Sort oldest first
     transactions.sort((a, b) => new Date(a.date || getCurrentDateString()) - new Date(b.date || getCurrentDateString()));
 
-    // Group transactions by date and sum amounts
+    // Group by selected filter
     const groupedData = {};
     transactions.forEach(item => {
-        const date = item.date || getCurrentDateString();
-        if (!groupedData[date]) {
-            groupedData[date] = { income: 0, expense: 0, savings: 0 };
+        const rawDate = item.date || getCurrentDateString();
+        let key;
+        if (currentHistoryFilter === 'weekly') {
+            key = getWeekStart(rawDate);
+        } else if (currentHistoryFilter === 'monthly') {
+            key = rawDate.slice(0, 7); // YYYY-MM
+        } else {
+            key = rawDate; // per-day
         }
 
-        if (item.type === 'income') {
-            groupedData[date].income += item.amount;
-        } else if (item.type === 'expense') {
-            groupedData[date].expense += item.amount;
-        } else if (item.type === 'savings-add') {
-            groupedData[date].savings += item.amount;
-        } else if (item.type === 'savings-withdraw') {
-            groupedData[date].savings -= item.amount;
-        }
+        if (!groupedData[key]) groupedData[key] = { income: 0, expense: 0, savings: 0 };
+
+        if (item.type === 'income') groupedData[key].income += item.amount;
+        else if (item.type === 'expense') groupedData[key].expense += item.amount;
+        else if (item.type === 'savings-add') groupedData[key].savings += item.amount;
+        else if (item.type === 'savings-withdraw') groupedData[key].savings -= item.amount;
     });
 
-    // Convert to arrays for chart
-    const sortedDates = Object.keys(groupedData).sort();
-    const labels = sortedDates.map(date => formatDate(date));
-    const incomeData = sortedDates.map(date => groupedData[date].income);
-    const expenseData = sortedDates.map(date => groupedData[date].expense);
-    const savingsData = sortedDates.map(date => groupedData[date].savings);
+    const sortedKeys = Object.keys(groupedData).sort();
+    const labels = sortedKeys.map(k => formatGroupLabel(k, currentHistoryFilter));
+    const incomeData = sortedKeys.map(k => groupedData[k].income);
+    const expenseData = sortedKeys.map(k => groupedData[k].expense);
+    const savingsData = sortedKeys.map(k => groupedData[k].savings);
 
-    // Destroy previous chart
-    if (priceHistoryChartInstance) {
-        priceHistoryChartInstance.destroy();
-    }
+    if (priceHistoryChartInstance) priceHistoryChartInstance.destroy();
+    if (!elements.priceHistoryChart) return;
 
-    // Ensure canvas exists
-    if (!elements.priceHistoryChart) {
-        return;
-    }
-
-    // Create new chart with reduced animation
     priceHistoryChartInstance = new Chart(elements.priceHistoryChart, {
         type: 'line',
         data: {
@@ -1726,11 +1755,11 @@ function updatePriceHistoryChart() {
                     borderColor: '#10B981',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     fill: true,
-                    tension: 0.2,
-                    pointRadius: 3,
+                    tension: 0.4,
+                    pointRadius: labels.length > 20 ? 2 : 4,
                     pointBackgroundColor: '#10B981',
                     pointBorderColor: '#ffffff',
-                    pointHoverRadius: 6,
+                    pointHoverRadius: 7,
                 },
                 {
                     label: 'Expenses',
@@ -1738,11 +1767,11 @@ function updatePriceHistoryChart() {
                     borderColor: '#EF4444',
                     backgroundColor: 'rgba(239, 68, 68, 0.1)',
                     fill: true,
-                    tension: 0.2,
-                    pointRadius: 3,
+                    tension: 0.4,
+                    pointRadius: labels.length > 20 ? 2 : 4,
                     pointBackgroundColor: '#EF4444',
                     pointBorderColor: '#ffffff',
-                    pointHoverRadius: 6,
+                    pointHoverRadius: 7,
                 },
                 {
                     label: 'Savings',
@@ -1750,39 +1779,38 @@ function updatePriceHistoryChart() {
                     borderColor: '#7C3AED',
                     backgroundColor: 'rgba(124, 58, 237, 0.1)',
                     fill: true,
-                    tension: 0.2,
-                    pointRadius: 3,
+                    tension: 0.4,
+                    pointRadius: labels.length > 20 ? 2 : 4,
                     pointBackgroundColor: '#7C3AED',
                     pointBorderColor: '#ffffff',
-                    pointHoverRadius: 6,
+                    pointHoverRadius: 7,
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            animation: {
-                duration: 300
-            },
+            animation: { duration: 400 },
             plugins: {
                 legend: {
                     position: 'top',
                     labels: {
-                        color: '#ffffff',
+                        color: '#4b5563',
                         font: { size: 12, family: 'Inter' },
                         padding: 15,
                         usePointStyle: true
                     }
                 },
                 tooltip: {
-                    titleColor: '#ffffff',
-                    bodyColor: '#ffffff',
-                    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                    titleColor: '#f1f5f9',
+                    bodyColor: '#e2e8f0',
+                    borderColor: 'rgba(255,255,255,0.1)',
                     borderWidth: 1,
+                    padding: 12,
                     callbacks: {
-                        label: function (context) {
-                            return context.dataset.label + ': ₹' + context.parsed.y.toFixed(2);
+                        label: function(context) {
+                            return ' ' + context.dataset.label + ': ₹' + context.parsed.y.toFixed(0);
                         }
                     }
                 }
@@ -1790,16 +1818,17 @@ function updatePriceHistoryChart() {
             scales: {
                 x: {
                     display: true,
-                    title: { display: true, text: 'Date', color: '#9ca3af' },
-                    ticks: { color: '#ffffff' },
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                    ticks: { color: '#6b7280', maxRotation: 45, font: { size: 11 } },
+                    grid: { color: 'rgba(0,0,0,0.05)' }
                 },
                 y: {
                     display: true,
-                    title: { display: true, text: 'Amount (₹)', color: '#9ca3af' },
                     beginAtZero: true,
-                    ticks: { color: '#ffffff' },
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                    ticks: {
+                        color: '#6b7280',
+                        callback: v => '₹' + (v >= 1000 ? (v/1000).toFixed(1) + 'k' : v)
+                    },
+                    grid: { color: 'rgba(0,0,0,0.05)' }
                 }
             }
         }

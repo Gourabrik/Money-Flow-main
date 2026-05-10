@@ -136,7 +136,7 @@
                     <i class="fas fa-chart-pie text-purple-500"></i> Monthly Summary - <span id="current-month"
                         class="text-purple-600"></span>
                 </h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6" id="monthly-categories">
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-6" id="monthly-categories">
                     <!-- Category totals will be populated here -->
                 </div>
 
@@ -320,13 +320,27 @@
 
             <!-- Price History Tab -->
             <div id="history-content" class="p-6 hidden">
-                <div class="flex justify-between items-center mb-6">
+                <div class="flex flex-wrap justify-between items-center mb-4 gap-3">
                     <h2 class="text-2xl font-semibold text-gray-800 flex items-center gap-2">
                         <i class="fas fa-history text-blue-500"></i> Price History
                     </h2>
-                    <button id="download-pdf-btn" class="btn btn-success flex items-center gap-2">
-                        <i class="fas fa-download"></i> Download PDF
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <!-- Chart Period Toggle -->
+                        <div class="flex bg-gray-100 rounded-xl p-1 gap-1" id="history-filter-group">
+                            <button id="filter-all-btn" onclick="switchHistoryFilter('all')" class="history-filter-btn active px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-purple-500 text-white shadow">
+                                All
+                            </button>
+                            <button id="filter-weekly-btn" onclick="switchHistoryFilter('weekly')" class="history-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-gray-600 hover:bg-white">
+                                Weekly
+                            </button>
+                            <button id="filter-monthly-btn" onclick="switchHistoryFilter('monthly')" class="history-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-gray-600 hover:bg-white">
+                                Monthly
+                            </button>
+                        </div>
+                        <button id="download-pdf-btn" class="btn btn-success flex items-center gap-2">
+                            <i class="fas fa-download"></i> PDF
+                        </button>
+                    </div>
                 </div>
                 <div class="chart-container relative">
                     <canvas id="price-history-chart"></canvas>
