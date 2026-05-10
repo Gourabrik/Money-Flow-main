@@ -1482,3 +1482,25 @@ textarea {
 .hidden {
     display: none !important;
 }
+
+/* ============================================
+   MONTHLY SUMMARY CATEGORY GRID — FORCE 4 COLS
+   ============================================ */
+#monthly-categories {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 10px !important;
+    margin-bottom: 16px !important;
+}
+
+/* Ensure category cards preserve their inline background/border colors */
+#monthly-categories > div {
+    /* Do NOT override background or border — let inline styles win */
+    min-height: 110px;
+}
+
+/* Prevent dark-theme global p/span override from clobbering card text */
+#monthly-categories span,
+#monthly-categories p {
+    color: inherit !important;
+}

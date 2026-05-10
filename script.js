@@ -567,6 +567,8 @@ function switchTab(tab) {
         // Hide heatmap report
         elements.heatmapReport.classList.add('hidden');
         elements.insightsReport.classList.add('hidden');
+        // Refresh monthly data
+        updateMonthlyReport();
     } else if (tab === 'heatmap') {
         elements.heatmapTab.classList.add('active', 'text-purple-600');
         elements.heatmapTab.classList.remove('text-gray-600');
@@ -1416,7 +1418,7 @@ function addTestExpenses() {
 
 
 
-// Modify the updateMonthlyReport function to include the Wants vs Needs chart
+// Monthly summary report
 function updateMonthlyReport() {
     const currentMonth = getCurrentDateString().slice(0, 7);
     const monthlyExpenses = expenses.filter(exp => exp.date.startsWith(currentMonth));
@@ -1426,38 +1428,57 @@ function updateMonthlyReport() {
         categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + exp.amount;
     });
 
+    const container = document.getElementById('monthly-categories');
+
     if (Object.keys(categoryTotals).length === 0) {
-        document.getElementById('monthly-categories').innerHTML = '<div class="col-span-2 text-center py-8 text-gray-500">' +
-            '<i class="fas fa-calendar-times text-4xl mb-3 opacity-50"></i>' +
-            '<p>No expenses this month yet</p>' +
+        container.innerHTML =
+            '<div style="grid-column:span 4;text-align:center;padding:32px;color:#888;">' +
+            '<i class="fas fa-calendar-times" style="font-size:2rem;margin-bottom:12px;opacity:.5;"></i>' +
+            '<p style="color:#888;">No expenses this month yet</p>' +
             '</div>';
     } else {
-        document.getElementById('monthly-categories').innerHTML = Object.entries(categoryTotals)
+        const totalMonthly = monthlyExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+        container.innerHTML = Object.entries(categoryTotals)
             .sort(([, a], [, b]) => b - a)
             .map(([category, total]) => {
-                const totalMonthly = monthlyExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-                const percentage = (total / totalMonthly) * 100;
-                const icon = getCategoryIcon(category);
-                return '<div class="flex flex-col items-center justify-between p-3 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow aspect-square">' +
-                    '<div class="w-10 h-10 rounded-xl bg-pink-50 flex items-center justify-center mb-2">' +
-                    '<i class="fas ' + icon + ' text-pink-500 text-lg"></i>' +
-                    '</div>' +
-                    '<span class="text-xs font-semibold text-gray-700 text-center leading-tight truncate w-full text-center">' + category + '</span>' +
-                    '<span class="text-sm font-bold text-red-500 mt-1">₹' + Math.floor(total) + '</span>' +
-                    '<div class="w-full bg-gray-100 rounded-full h-1.5 mt-2">' +
-                    '<div class="h-1.5 rounded-full bg-gradient-to-r from-pink-400 to-purple-500" style="width: ' + percentage.toFixed(0) + '%"></div>' +
-                    '</div>' +
-                    '<span class="text-[10px] text-gray-400 mt-1">' + percentage.toFixed(0) + '%</span>' +
-                    '</div>';
+                const pct = ((total / totalMonthly) * 100).toFixed(0);
+                const info = getCategoryInfo(category);
+                return `<div style="
+                    background:${info.bg};
+                    border:2px solid ${info.border};
+                    border-radius:18px;
+                    display:flex;
+                    flex-direction:column;
+                    align-items:center;
+                    justify-content:center;
+                    padding:10px 6px 8px;
+                    cursor:default;
+                    transition:transform .2s,box-shadow .2s;
+                    box-shadow:0 2px 8px rgba(0,0,0,.08);
+                " onmouseover="this.style.transform='scale(1.06)';this.style.boxShadow='0 6px 18px rgba(0,0,0,.15)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 8px rgba(0,0,0,.08)'">
+                    <div style="
+                        width:38px;height:38px;
+                        border-radius:12px;
+                        background:${info.iconBg};
+                        display:flex;align-items:center;justify-content:center;
+                        margin-bottom:7px;
+                        box-shadow:0 2px 6px rgba(0,0,0,.1);
+                    ">
+                        <i class="fas ${info.icon}" style="font-size:1rem;color:${info.color};"></i>
+                    </div>
+                    <span style="font-size:10px;font-weight:700;color:${info.color};text-align:center;display:block;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${category}</span>
+                    <span style="font-size:14px;font-weight:800;color:${info.textDark};margin-top:3px;">₹${Math.floor(total)}</span>
+                    <div style="width:80%;height:4px;background:${info.barBg};border-radius:99px;margin-top:5px;overflow:hidden;">
+                        <div style="height:100%;width:${pct}%;background:${info.color};border-radius:99px;"></div>
+                    </div>
+                    <span style="font-size:9px;font-weight:600;color:${info.color};margin-top:3px;">${pct}%</span>
+                </div>`;
             }).join('');
     }
 
     const monthlyTotal = monthlyExpenses.reduce((sum, exp) => sum + exp.amount, 0);
     elements.monthlyTotal.textContent = '₹' + Math.floor(monthlyTotal);
-
-
 }
-
 
 // Stub functions for missing functionality
 function updateBudgetLimitsUI() {
@@ -1568,17 +1589,41 @@ function aggregateDataByCategory(expenses) {
 }
 
 // Helper functions
-function getCategoryIcon(category) {
-    const icons = {
-        'Food': 'fa-utensils',
-        'Travel': 'fa-plane',
-        'Shopping': 'fa-shopping-bag',
-        'Bills': 'fa-file-invoice-dollar',
-        'Entertainment': 'fa-film',
-        'Healthcare': 'fa-heartbeat',
-        'Other': 'fa-cube'
+// Per-category color palette & icon map
+function getCategoryInfo(category) {
+    const map = {
+        'Food':          { icon:'fa-utensils',           color:'#e67e22', iconBg:'#fef3e2', bg:'#fffbf5', border:'#fde8c4', barBg:'#fde8c4', textDark:'#a04e0e' },
+        'Shopping':      { icon:'fa-shopping-bag',       color:'#e91e8c', iconBg:'#fde8f4', bg:'#fff5fb', border:'#fbc8e9', barBg:'#fbc8e9', textDark:'#9b0d5e' },
+        'Transport':     { icon:'fa-bus',                color:'#3498db', iconBg:'#e8f4fd', bg:'#f5fbff', border:'#bde0f9', barBg:'#bde0f9', textDark:'#1a6fa8' },
+        'Transportation':{ icon:'fa-bus',                color:'#3498db', iconBg:'#e8f4fd', bg:'#f5fbff', border:'#bde0f9', barBg:'#bde0f9', textDark:'#1a6fa8' },
+        'Entertainment': { icon:'fa-film',               color:'#9b59b6', iconBg:'#f4e8fc', bg:'#faf5ff', border:'#dbbef7', barBg:'#dbbef7', textDark:'#6c2f91' },
+        'Health':        { icon:'fa-heartbeat',          color:'#e74c3c', iconBg:'#fde8e8', bg:'#fff5f5', border:'#f9bebe', barBg:'#f9bebe', textDark:'#a52b1f' },
+        'Bills':         { icon:'fa-file-invoice-dollar',color:'#1abc9c', iconBg:'#e2f9f4', bg:'#f4fefb', border:'#b2ead9', barBg:'#b2ead9', textDark:'#0e7a61' },
+        'Education':     { icon:'fa-graduation-cap',     color:'#2ecc71', iconBg:'#e4f9ec', bg:'#f4fff8', border:'#b4ecc8', barBg:'#b4ecc8', textDark:'#1a7a42' },
+        'Phone':         { icon:'fa-mobile-alt',         color:'#16a085', iconBg:'#e0f5f1', bg:'#f2fdfb', border:'#a5ddd3', barBg:'#a5ddd3', textDark:'#0d6157' },
+        'Beauty':        { icon:'fa-cut',                color:'#fd79a8', iconBg:'#fde8f2', bg:'#fff5fa', border:'#fbbcda', barBg:'#fbbcda', textDark:'#b5456e' },
+        'Sports':        { icon:'fa-running',            color:'#f39c12', iconBg:'#fef6e0', bg:'#fffdf5', border:'#fce4a0', barBg:'#fce4a0', textDark:'#9a6008' },
+        'Social':        { icon:'fa-users',              color:'#0984e3', iconBg:'#e3f4ff', bg:'#f2faff', border:'#aed9f7', barBg:'#aed9f7', textDark:'#065a9e' },
+        'Clothing':      { icon:'fa-tshirt',             color:'#6c5ce7', iconBg:'#ede8fc', bg:'#f8f6ff', border:'#c9bcf5', barBg:'#c9bcf5', textDark:'#3f27b0' },
+        'Car':           { icon:'fa-car',                color:'#b2bec3', iconBg:'#f0f2f3', bg:'#f9fafb', border:'#d9dfe2', barBg:'#d9dfe2', textDark:'#636e72' },
+        'Alcohol':       { icon:'fa-wine-glass-alt',     color:'#d63031', iconBg:'#fae6e6', bg:'#fff3f3', border:'#f5b8b8', barBg:'#f5b8b8', textDark:'#8c1c1c' },
+        'Electronics':   { icon:'fa-laptop',             color:'#00cec9', iconBg:'#e0faf9', bg:'#f2fefe', border:'#a2e9e8', barBg:'#a2e9e8', textDark:'#008685' },
+        'Travel':        { icon:'fa-plane',              color:'#0652DD', iconBg:'#e4edfc', bg:'#f4f8ff', border:'#b4caef', barBg:'#b4caef', textDark:'#03318c' },
+        'Pets':          { icon:'fa-paw',                color:'#fdcb6e', iconBg:'#fef9e8', bg:'#fffef5', border:'#fbeab6', barBg:'#fbeab6', textDark:'#9a7118' },
+        'Repairs':       { icon:'fa-wrench',             color:'#636e72', iconBg:'#eff0f1', bg:'#f8f9f9', border:'#cbd1d3', barBg:'#cbd1d3', textDark:'#343a3d' },
+        'Housing':       { icon:'fa-home',               color:'#e17055', iconBg:'#fceae6', bg:'#fff6f4', border:'#f5c0b0', barBg:'#f5c0b0', textDark:'#8c3820' },
+        'Gifts':         { icon:'fa-gift',               color:'#a29bfe', iconBg:'#edeafe', bg:'#f9f8ff', border:'#cdc9fb', barBg:'#cdc9fb', textDark:'#6c63d6' },
+        'Other':         { icon:'fa-cube',               color:'#74b9ff', iconBg:'#e8f4ff', bg:'#f3f9ff', border:'#b6d9fb', barBg:'#b6d9fb', textDark:'#2980b9' },
     };
-    return icons[category] || 'fa-tag';
+    return map[category] || {
+        icon: 'fa-tag', color: '#6c5ce7', iconBg: '#ede8fc',
+        bg: '#f8f6ff', border: '#c9bcf5', barBg: '#c9bcf5', textDark: '#3f27b0'
+    };
+}
+
+// Legacy getCategoryIcon wrapper
+function getCategoryIcon(category) {
+    return getCategoryInfo(category).icon;
 }
 
 // Function to load custom categories into the dropdown
