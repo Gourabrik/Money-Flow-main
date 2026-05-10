@@ -3,128 +3,402 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login | MoneyFlow - Fun Expense Tracker</title>
+    <title>Login | MoneyFlow - Professional Expense Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-</head>
-<body class="bg-gray-50 min-h-screen py-8">
-    <!-- Animated background elements -->
-    <div class="background-animation">
-        <div class="circle"></div>
-        <div class="circle"></div>
-        <div class="circle"></div>
-    </div>
-    
-    <div class="container mx-auto px-4 max-w-6xl relative z-10">
-        <!-- Header -->
-        <div class="header-container text-center mb-12 animate-fade-in">
-            <h1 class="text-5xl font-bold text-gray-800 mb-4 bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
-                MoneyFlow
-            </h1>
-            <p class="text-lg text-gray-600 max-w-2xl mx-auto">
-                Track your expenses, visualize your spending patterns, and take control of your budget with our fun and intuitive expense management system.
-            </p>
-            <div class="text-center mt-2">
-                <span class="font-semibold text-pink-600 text-lg">MADE WITH ❤️ FOR EVERYONE</span>
-            </div>
-        </div>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
-        <!-- Login Card -->
-        <div class="glass-card p-8 mb-8 relative overflow-hidden">
-            <div class="absolute inset-0 bg-gradient-to-r from-pink-50 to-purple-50 opacity-50"></div>
-            <div class="relative">
-                <div class="flex flex-col lg:flex-row">
-                    <!-- Illustration Section -->
-                    <div class="lg:w-1/2 p-8 flex flex-col justify-center items-center text-white" style="background: linear-gradient(135deg, #FF9A8B 0%, #FF6A88 100%);">
-                        <div class="mb-8 text-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mx-auto mb-6" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v2h16V6H4zm0 4v8h16v-8H4zm2 2h4v2H6v-2zm6 0h4v2h-4v-2z"/>
-                            </svg>
-                            <h2 class="text-3xl font-bold text-center mb-4">Track Your Expenses Effortlessly</h2>
-                            <p class="text-center text-pink-100">Manage your finances with our intuitive expense tracker and gain full control over your budget.</p>
+        body {
+            background-color: #050b14;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Outfit', sans-serif;
+            color: #f8fafc;
+            position: relative;
+            overflow: hidden;
+            margin: 0;
+        }
+        
+        /* Advanced Background Animation */
+        .ambient-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+            overflow: hidden;
+            background: linear-gradient(125deg, #050b14 0%, #0a192f 100%);
+        }
+
+        .ambient-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.5;
+            animation: float 20s infinite ease-in-out alternate;
+        }
+
+        .blob-1 {
+            background: rgba(45, 120, 255, 0.4);
+            width: 500px;
+            height: 500px;
+            top: -10%;
+            left: -10%;
+            animation-delay: 0s;
+        }
+
+        .blob-2 {
+            background: rgba(20, 180, 200, 0.3);
+            width: 400px;
+            height: 400px;
+            bottom: -5%;
+            right: -5%;
+            animation-delay: -5s;
+        }
+
+        .blob-3 {
+            background: rgba(120, 80, 255, 0.3);
+            width: 300px;
+            height: 300px;
+            top: 40%;
+            left: 60%;
+            animation-delay: -10s;
+        }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+            33% { transform: translate(30px, -50px) scale(1.1) rotate(120deg); }
+            66% { transform: translate(-20px, 20px) scale(0.9) rotate(240deg); }
+            100% { transform: translate(0, 0) scale(1) rotate(360deg); }
+        }
+
+        /* Particles */
+        .particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+                radial-gradient(rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 50px 50px;
+            background-position: 0 0, 25px 25px;
+            opacity: 0.3;
+            animation: scroll 60s linear infinite;
+        }
+
+        @keyframes scroll {
+            0% { background-position: 0 0, 25px 25px; }
+            100% { background-position: 500px 500px, 525px 525px; }
+        }
+
+        /* Glass Panel Styling */
+        .glass-panel {
+            background: rgba(10, 25, 47, 0.4);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            border-left: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 
+                0 30px 60px -15px rgba(0, 0, 0, 0.6),
+                0 0 40px -10px rgba(45, 120, 255, 0.2);
+            transform: translateY(30px) scale(0.95);
+            opacity: 0;
+            animation: cardReveal 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+            position: relative;
+            z-index: 10;
+        }
+
+        @keyframes cardReveal {
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
+        /* Input Styling */
+        .input-group {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .input-glass {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            color: #f8fafc;
+            padding: 14px 16px 14px 48px;
+            width: 100%;
+            font-size: 0.95rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .input-glass:focus {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(45, 120, 255, 0.6);
+            box-shadow: 
+                inset 0 2px 4px rgba(0,0,0,0.1),
+                0 0 0 4px rgba(45, 120, 255, 0.15);
+            outline: none;
+        }
+
+        .input-glass::placeholder {
+            color: rgba(255,255,255,0.3);
+            font-weight: 300;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(255,255,255,0.4);
+            transition: color 0.3s ease;
+        }
+
+        .input-glass:focus + .input-icon,
+        .input-glass:not(:placeholder-shown) + .input-icon {
+            color: #2d78ff;
+        }
+
+        /* Buttons */
+        .btn-primary {
+            background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%);
+            background-size: 200% auto;
+            color: white;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.4s ease;
+            box-shadow: 0 10px 20px -5px rgba(37, 99, 235, 0.4);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary:hover {
+            background-position: right center;
+            transform: translateY(-3px);
+            box-shadow: 0 15px 25px -5px rgba(37, 99, 235, 0.5);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-social {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            border-radius: 14px;
+        }
+
+        .btn-social:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px -5px rgba(0,0,0,0.3);
+        }
+
+        /* Utility animations */
+        .fade-in-up {
+            opacity: 0;
+            animation: fadeInUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.2s; }
+        .delay-3 { animation-delay: 0.3s; }
+        .delay-4 { animation-delay: 0.4s; }
+
+        .loading-spinner {
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 50%;
+            border-top: 2px solid #fff;
+            width: 18px;
+            height: 18px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        .error-message {
+            color: #ff6b6b;
+            font-size: 0.8rem;
+            margin-top: 6px;
+            display: none;
+            padding-left: 4px;
+            animation: shake 0.4s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-6">
+
+    <!-- Ambient Animated Background -->
+    <div class="ambient-bg">
+        <div class="ambient-blob blob-1"></div>
+        <div class="ambient-blob blob-2"></div>
+        <div class="ambient-blob blob-3"></div>
+        <div class="particles"></div>
+    </div>
+
+    <!-- Mobile Header (Visible only on small screens) -->
+    <div class="md:hidden absolute top-8 left-0 w-full z-20 flex justify-center fade-in-up delay-1">
+        <div class="flex items-center gap-3 bg-white/5 px-6 py-3 rounded-full border border-white/10 backdrop-blur-md">
+            <div class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-400/30">
+                <i class="fas fa-wallet text-blue-400 text-sm"></i>
+            </div>
+            <span class="font-bold text-xl tracking-wide">MoneyFlow</span>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="glass-panel w-full max-w-[1000px] rounded-[32px] overflow-hidden flex flex-col md:flex-row mt-16 md:mt-0 shadow-2xl">
+        
+        <!-- Left Branding Panel (Hidden on Mobile) -->
+        <div class="hidden md:flex md:w-5/12 p-10 flex-col justify-between relative bg-black/10 border-r border-white/5">
+            <!-- Subtle internal glow -->
+            <div class="absolute inset-0 bg-gradient-to-b from-blue-500/5 to-transparent z-0"></div>
+            
+            <div class="relative z-10 fade-in-up delay-1">
+                <div class="flex items-center gap-3 mb-1">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                        <i class="fas fa-wallet text-white text-lg"></i>
+                    </div>
+                    <h1 class="text-2xl font-bold tracking-wide text-white">MoneyFlow</h1>
+                </div>
+                <p class="text-blue-300/70 text-xs font-semibold tracking-[0.2em] ml-[52px] uppercase">Enterprise</p>
+            </div>
+
+            <div class="relative z-10 my-auto py-10 fade-in-up delay-2">
+                <h2 class="text-[2.5rem] font-bold leading-[1.1] mb-6 text-transparent bg-clip-text bg-gradient-to-r from-white to-white/70">
+                    Elevate your financial clarity.
+                </h2>
+                
+                <div class="space-y-6 mt-10">
+                    <div class="flex items-start gap-4 group">
+                        <div class="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center shrink-0 border border-white/10 group-hover:bg-blue-500/10 group-hover:border-blue-500/30 transition-all duration-300">
+                            <i class="fas fa-chart-line text-blue-400 text-lg group-hover:scale-110 transition-transform"></i>
                         </div>
-                        
-                        <div class="mt-8">
-                            <div class="flex items-center mb-6">
-                                <div class="mr-4 bg-white bg-opacity-20 p-3 rounded-full">
-                                    <i class="fas fa-chart-pie text-xl"></i>
-                                </div>
-                                <div>
-                                    <h3 class="font-bold">Visualize Spending</h3>
-                                    <p class="text-sm text-pink-200">Beautiful charts and reports</p>
-                                </div>
-                            </div>
-                            
-                            <div class="flex items-center mb-6">
-                                <div class="mr-4 bg-white bg-opacity-20 p-3 rounded-full">
-                                    <i class="fas fa-shield-alt text-xl"></i>
-                                </div>
-                                <div>
-                                    <h3 class="font-bold">Secure & Private</h3>
-                                    <p class="text-sm text-pink-200">Your data stays on your device</p>
-                                </div>
-                            </div>
-                            
-                            <div class="flex items-center">
-                                <div class="mr-4 bg-white bg-opacity-20 p-3 rounded-full">
-                                    <i class="fas fa-mobile-alt text-xl"></i>
-                                </div>
-                                <div>
-                                    <h3 class="font-bold">Access Anywhere</h3>
-                                    <p class="text-sm text-pink-200">Works on all your devices</p>
-                                </div>
-                            </div>
+                        <div class="pt-1">
+                            <h3 class="font-semibold text-white/90 text-sm">Smart Analytics</h3>
+                            <p class="text-sm text-white/50 mt-1 leading-relaxed">Visualize your cash flow with stunning, interactive precision.</p>
                         </div>
                     </div>
                     
-                    <!-- Login Form Section -->
-                    <div class="lg:w-1/2 p-8 sm:p-12">
-                        <div class="text-center mb-10">
-                            <h1 class="text-4xl font-bold text-gray-800 mb-2">Welcome!</h1>
-                            <p class="text-gray-600">Sign in to start managing your finances</p>
+                    <div class="flex items-start gap-4 group">
+                        <div class="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center shrink-0 border border-white/10 group-hover:bg-teal-500/10 group-hover:border-teal-500/30 transition-all duration-300">
+                            <i class="fas fa-shield-alt text-teal-400 text-lg group-hover:scale-110 transition-transform"></i>
                         </div>
-                        
-                        <div class="space-y-6">
-                            <!-- Google Login Button -->
-                            <button id="google-login" class="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 rounded-full py-4 px-6 text-gray-700 font-semibold hover:bg-gray-50 transition-all duration-300 shadow-md hover:shadow-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
-                                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                                </svg>
-                                Sign in with Google
-                            </button>
-                            
-                            <!-- Divider -->
-                            <div class="relative">
-                                <div class="absolute inset-0 flex items-center">
-                                    <div class="w-full border-t border-gray-300"></div>
-                                </div>
-                                <div class="relative flex justify-center text-sm">
-                                    <span class="px-2 bg-white text-gray-500">OR</span>
-                                </div>
-                            </div>
-                            
-                            <!-- Guest Login Button -->
-                            <button id="guest-login" class="w-full bg-gradient-to-r from-pink-500 to-purple-500 text-white py-4 px-6 rounded-full font-semibold hover:from-pink-600 hover:to-purple-600 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-3">
-                                <i class="fas fa-user-circle text-xl"></i>
-                                Continue as Guest
-                            </button>
-                            
-                            <!-- Info Text -->
-                            <div class="text-center text-sm text-gray-600 mt-8">
-                                <p>By continuing, you agree to our</p>
-                                <p class="mt-1">
-                                    <a href="#" class="text-pink-600 hover:underline">Terms of Service</a> 
-                                    and 
-                                    <a href="#" class="text-pink-600 hover:underline">Privacy Policy</a>
-                                </p>
-                            </div>
+                        <div class="pt-1">
+                            <h3 class="font-semibold text-white/90 text-sm">Ironclad Security</h3>
+                            <p class="text-sm text-white/50 mt-1 leading-relaxed">Your financial data is encrypted and completely private.</p>
                         </div>
                     </div>
                 </div>
+            </div>
+            
+            <div class="relative z-10 flex items-center gap-4 fade-in-up delay-3">
+                <div class="flex -space-x-3">
+                    <img src="https://i.pravatar.cc/100?img=33" class="w-8 h-8 rounded-full border-2 border-[#0a192f]" alt="User">
+                    <img src="https://i.pravatar.cc/100?img=47" class="w-8 h-8 rounded-full border-2 border-[#0a192f]" alt="User">
+                    <img src="https://i.pravatar.cc/100?img=12" class="w-8 h-8 rounded-full border-2 border-[#0a192f]" alt="User">
+                </div>
+                <p class="text-xs text-white/50 font-medium">Join 10k+ professionals</p>
+            </div>
+        </div>
+
+        <!-- Right Login Form -->
+        <div class="md:w-7/12 p-8 sm:p-12 w-full relative">
+            <div class="max-w-[400px] mx-auto">
+                <div class="mb-10 text-center md:text-left fade-in-up delay-1">
+                    <h2 class="text-3xl font-semibold text-white mb-2">Welcome Back</h2>
+                    <p class="text-white/50 font-light">Securely sign in to your dashboard</p>
+                </div>
+
+                <form id="login-form" class="fade-in-up delay-2" novalidate>
+                    <div class="input-group">
+                        <label for="email" class="block text-xs font-medium text-white/70 mb-2 ml-1">Email Address</label>
+                        <div class="relative">
+                            <input type="email" id="email" name="email" class="input-glass" placeholder="you@company.com" required>
+                            <i class="fas fa-envelope input-icon"></i>
+                        </div>
+                        <p id="email-error" class="error-message">Valid email required</p>
+                    </div>
+
+                    <div class="input-group mb-6">
+                        <div class="flex justify-between mb-2 ml-1 mr-1">
+                            <label for="password" class="block text-xs font-medium text-white/70">Password</label>
+                            <a href="#" class="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors">Forgot?</a>
+                        </div>
+                        <div class="relative">
+                            <input type="password" id="password" name="password" class="input-glass pr-12" placeholder="••••••••" required>
+                            <i class="fas fa-lock input-icon"></i>
+                            <button type="button" id="toggle-password" class="absolute right-4 top-1/2 transform -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <p id="password-error" class="error-message">Password required</p>
+                    </div>
+
+                    <div class="flex items-center mb-8 ml-1">
+                        <div class="relative flex items-start">
+                            <div class="flex items-center h-5">
+                                <input id="remember-me" type="checkbox" class="w-4 h-4 border border-white/20 rounded bg-white/5 focus:ring-1 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-500 transition-colors cursor-pointer appearance-none checked:after:content-['✓'] checked:after:text-white checked:after:text-xs checked:after:absolute checked:after:left-[3px] checked:after:top-0">
+                            </div>
+                            <div class="ml-3 text-sm">
+                                <label for="remember-me" class="font-light text-white/60 cursor-pointer hover:text-white/80 transition-colors">Keep me signed in</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="submit-btn" class="btn-primary w-full py-4 flex justify-center items-center gap-3">
+                        <span class="text-sm">Sign In to Dashboard</span>
+                        <div id="submit-spinner" class="loading-spinner hidden"></div>
+                    </button>
+                </form>
+
+                <div class="my-8 flex items-center fade-in-up delay-3">
+                    <div class="flex-grow border-t border-white/10"></div>
+                    <span class="mx-4 text-xs font-medium text-white/30 uppercase tracking-widest">Or continue with</span>
+                    <div class="flex-grow border-t border-white/10"></div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 fade-in-up delay-4">
+                    <button id="google-login" class="btn-social py-3.5 flex items-center justify-center gap-3 group">
+                        <svg class="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                        </svg>
+                        <span class="text-sm font-medium text-white/80 group-hover:text-white transition-colors">Google</span>
+                    </button>
+                    
+                    <button id="guest-login" class="btn-social py-3.5 flex items-center justify-center gap-3 group">
+                        <i class="fas fa-user-secret text-lg text-white/50 group-hover:text-white group-hover:scale-110 transition-all"></i>
+                        <span class="text-sm font-medium text-white/80 group-hover:text-white transition-colors">Guest</span>
+                    </button>
+                </div>
+
+                <p class="mt-10 text-center text-sm text-white/50 fade-in-up delay-4">
+                    New to MoneyFlow? <a href="#" class="font-medium text-blue-400 hover:text-blue-300 transition-colors relative after:absolute after:bottom-0 after:left-0 after:w-full after:h-[1px] after:bg-blue-400 after:scale-x-0 hover:after:scale-x-100 after:transition-transform after:origin-right hover:after:origin-left">Create an account</a>
+                </p>
             </div>
         </div>
     </div>
