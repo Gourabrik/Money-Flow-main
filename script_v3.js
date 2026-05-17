@@ -398,6 +398,16 @@ function setupEventListeners() {
     elements.incomeForm.addEventListener('submit', handleIncomeSubmit);
 
     // Chart controls
+    if (elements.historyTableBody) {
+        elements.historyTableBody.addEventListener('click', (e) => {
+            const btn = e.target.closest('.delete-tx-btn');
+            if (!btn) return;
+            const key = btn.getAttribute('data-key');
+            if (key) {
+                deleteTransactionByKey(key);
+            }
+        });
+    }
     elements.dailyChartBtn.addEventListener('click', () => switchChart('daily'));
     elements.monthlyChartBtn.addEventListener('click', () => switchChart('monthly'));
 
@@ -2042,7 +2052,7 @@ function renderHistoryTable() {
             '<td class="py-3 px-4"><span class="px-2 py-1 rounded-full text-xs font-semibold ' + typeClass + '">' + typeText + '</span></td>' +
             '<td class="py-3 px-4">' + (transaction.description || 'No description') + '</td>' +
             '<td class="py-3 px-4 text-right font-medium ' + amountClass + '">' + amountText + '</td>' +
-            '<td class="py-3 px-4 text-center"><button onclick="deleteTransactionByKey(\'' + safeKey + '\')" class="text-red-500 hover:text-red-700 text-lg"><i class="fas fa-times"></i></button></td>' +
+            '<td class="py-3 px-4 text-center"><button class="delete-tx-btn text-red-500 hover:text-red-700 text-lg" data-key="' + safeKey + '"><i class="fas fa-times"></i></button></td>' +
             '</tr>';
     }).join('');
 
@@ -2302,8 +2312,6 @@ function downloadHistoryAsPDF() {
 
 // New key-based delete — called by the ✕ buttons in the history table
 function deleteTransactionByKey(encodedKey) {
-    if (!confirm('Delete this transaction?')) return;
-
     const key   = decodeURIComponent(encodedKey);
     const parts = key.split('|');
     const type  = parts[0];   // 'expense' | 'income' | 'savings'
@@ -2314,9 +2322,9 @@ function deleteTransactionByKey(encodedKey) {
         // Use index hint first, then fallback to date+amount match
         const date   = parts[2];
         const amount = parseFloat(parts[3]);
-        let idx = (!isNaN(i) && expenses[i] && expenses[i].date === date && expenses[i].amount === amount)
+        let idx = (!isNaN(i) && expenses[i] && expenses[i].date === date && parseFloat(expenses[i].amount) === amount)
             ? i
-            : expenses.findIndex(e => e.date === date && e.amount === amount);
+            : expenses.findIndex(e => e.date === date && parseFloat(e.amount) === amount);
         if (idx > -1) {
             const deleted = expenses.splice(idx, 1)[0];
             localStorage.setItem('expenses', JSON.stringify(expenses));
@@ -2326,14 +2334,14 @@ function deleteTransactionByKey(encodedKey) {
         const date   = parts[2];
         const amount = parseFloat(parts[3]);
         let ih = JSON.parse(localStorage.getItem('incomeHistory')) || [];
-        let idx = (!isNaN(i) && ih[i] && ih[i].date === date && ih[i].amount === amount)
+        let idx = (!isNaN(i) && ih[i] && ih[i].date === date && parseFloat(ih[i].amount) === amount)
             ? i
-            : ih.findIndex(e => e.date === date && e.amount === amount);
+            : ih.findIndex(e => e.date === date && parseFloat(e.amount) === amount);
         if (idx > -1) {
             const deleted = ih.splice(idx, 1)[0];
             localStorage.setItem('incomeHistory', JSON.stringify(ih));
-            if (deleted.type === 'online') { onlineIncome -= deleted.amount; localStorage.setItem('onlineIncome', onlineIncome); }
-            else                           { cashIncome   -= deleted.amount; localStorage.setItem('cashIncome',   cashIncome); }
+            if (deleted.type === 'online') { onlineIncome -= parseFloat(deleted.amount); localStorage.setItem('onlineIncome', onlineIncome); }
+            else                           { cashIncome   -= parseFloat(deleted.amount); localStorage.setItem('cashIncome',   cashIncome); }
             income = onlineIncome + cashIncome;
             localStorage.setItem('income', income.toString());
             if (uid && window.FS) {
@@ -2346,12 +2354,12 @@ function deleteTransactionByKey(encodedKey) {
         const amount = parseFloat(parts[3]);
         const stype  = parts[4] || 'savings-add';
         let sh = JSON.parse(localStorage.getItem('savingsHistory')) || [];
-        let idx = (!isNaN(i) && sh[i] && sh[i].date === date)
+        let idx = (!isNaN(i) && sh[i] && sh[i].date === date && parseFloat(sh[i].amount) === amount && sh[i].type === stype)
             ? i
-            : sh.findIndex(e => e.date === date && e.amount === amount && e.type === stype);
+            : sh.findIndex(e => e.date === date && parseFloat(e.amount) === amount && e.type === stype);
         if (idx > -1) {
             const deleted = sh.splice(idx, 1)[0];
-            savings += (deleted.type === 'savings-add' ? -deleted.amount : deleted.amount);
+            savings += (deleted.type === 'savings-add' ? -parseFloat(deleted.amount) : parseFloat(deleted.amount));
             if (savings < 0) savings = 0;
             localStorage.setItem('savings', savings.toString());
             localStorage.setItem('savingsHistory', JSON.stringify(sh));
