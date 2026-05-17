@@ -1484,23 +1484,26 @@ textarea {
 }
 
 /* ============================================
-   MONTHLY SUMMARY CATEGORY GRID — FORCE 4 COLS
+   EXPENSE GRID CARDS — RESPONSIVE
    ============================================ */
-#monthly-categories {
+.expense-grid {
     display: grid !important;
-    grid-template-columns: repeat(4, 1fr) !important;
-    gap: 10px !important;
-    margin-bottom: 16px !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+    margin-bottom: 12px !important;
+    width: 100% !important;
 }
 
-/* Ensure category cards preserve their inline background/border colors */
-#monthly-categories > div {
-    /* Do NOT override background or border — let inline styles win */
-    min-height: 110px;
+@media (min-width: 650px) {
+    .expense-grid {
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 14px !important;
+    }
 }
 
-/* Prevent dark-theme global p/span override from clobbering card text */
-#monthly-categories span,
-#monthly-categories p {
-    color: inherit !important;
+/* Ensure category cards are uniform squares */
+.expense-grid > div {
+    aspect-ratio: 1 / 1 !important;
+    box-sizing: border-box !important;
+    min-width: 0 !important;
 }

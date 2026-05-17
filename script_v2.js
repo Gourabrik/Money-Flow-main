@@ -1290,34 +1290,34 @@ function updateDailyReport() {
     elements.dailyTotal.textContent = '₹' + Math.floor(dailyTotal);
 }
 
-// Shared helper — renders a category card HTML string
 function renderCategoryCard(category, total, pct) {
     const info = getCategoryInfo(category);
     return `<div style="
-        background:${info.bg};
-        border:1.5px solid ${info.border};
-        border-radius:16px;
-        display:flex;
-        flex-direction:column;
-        align-items:center;
-        justify-content:center;
-        padding:8px;
-        box-sizing:border-box;
-        transition:transform .2s,box-shadow .2s;
-        box-shadow:0 2px 8px rgba(0,0,0,.08);
-        cursor:default;
-        width:100%;
-        height:100%;
+        background:${info.bg} !important;
+        border:2px solid ${info.border} !important;
+        border-radius:20px !important;
+        display:flex !important;
+        flex-direction:column !important;
+        align-items:center !important;
+        justify-content:center !important;
+        padding:12px 6px !important;
+        box-sizing:border-box !important;
+        transition:transform .2s ease, box-shadow .2s ease !important;
+        box-shadow:0 4px 15px rgba(0,0,0,0.12) !important;
+        cursor:default !important;
+        width:100% !important;
+        height:100% !important;
+        position:relative !important;
     "
-    onmouseover="this.style.transform='scale(1.05)';this.style.boxShadow='0 8px 20px rgba(0,0,0,.15)'"
-    onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 8px rgba(0,0,0,.08)'">
-        <div style="width:36px;height:36px;border-radius:10px;background:${info.iconBg};display:flex;align-items:center;justify-content:center;margin-bottom:6px;box-shadow:0 1px 4px rgba(0,0,0,.05);">
-            <i class="fas ${info.icon}" style="font-size:0.9rem;color:${info.color};"></i>
+    onmouseover="this.style.transform='scale(1.04)';this.style.boxShadow='0 12px 30px rgba(0,0,0,0.25)'"
+    onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 15px rgba(0,0,0,0.12)'">
+        <div style="width:42px;height:42px;border-radius:12px;background:${info.iconBg} !important;display:flex;align-items:center;justify-content:center;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08) !important;">
+            <i class="fas ${info.icon}" style="font-size:1.2rem !important;color:${info.color} !important;"></i>
         </div>
-        <span style="font-size:10px;font-weight:700;color:${info.color};text-align:center;display:block;width:100%;padding:0 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2;">${category}</span>
-        <span style="font-size:14px;font-weight:800;color:${info.textDark};margin-top:2px;line-height:1;">₹${Math.floor(total)}</span>
-        <div style="width:70%;height:5px;background:${info.barBg};border-radius:10px;margin-top:6px;overflow:hidden;">
-            <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,${info.color},${info.textDark});border-radius:10px;"></div>
+        <span style="font-size:12px !important;font-weight:700 !important;color:${info.textDark} !important;text-align:center !important;display:block !important;width:100% !important;padding:0 4px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important;line-height:1.2 !important;margin-bottom:2px !important;">${category}</span>
+        <span style="font-size:18px !important;font-weight:900 !important;color:#000000 !important;margin-top:2px !important;line-height:1 !important;letter-spacing:-0.5px !important;">₹${Math.floor(total)}</span>
+        <div style="width:75%;height:6px;background:${info.barBg} !important;border-radius:10px !important;margin-top:10px !important;overflow:hidden !important;border:1px solid rgba(0,0,0,0.05) !important;">
+            <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,${info.color},${info.textDark}) !important;border-radius:10px !important;"></div>
         </div>
     </div>`;
 }
@@ -1581,33 +1581,20 @@ function aggregateDataByCategory(expenses) {
 // Per-category color palette & icon map
 function getCategoryInfo(category) {
     const map = {
-        'Food':          { icon:'fa-utensils',           color:'#e67e22', iconBg:'#fef3e2', bg:'#fffbf5', border:'#fde8c4', barBg:'#fde8c4', textDark:'#a04e0e' },
-        'Shopping':      { icon:'fa-shopping-bag',       color:'#e91e8c', iconBg:'#fde8f4', bg:'#fff5fb', border:'#fbc8e9', barBg:'#fbc8e9', textDark:'#9b0d5e' },
-        'Transport':     { icon:'fa-bus',                color:'#3498db', iconBg:'#e8f4fd', bg:'#f5fbff', border:'#bde0f9', barBg:'#bde0f9', textDark:'#1a6fa8' },
-        'Transportation':{ icon:'fa-bus',                color:'#3498db', iconBg:'#e8f4fd', bg:'#f5fbff', border:'#bde0f9', barBg:'#bde0f9', textDark:'#1a6fa8' },
-        'Entertainment': { icon:'fa-film',               color:'#9b59b6', iconBg:'#f4e8fc', bg:'#faf5ff', border:'#dbbef7', barBg:'#dbbef7', textDark:'#6c2f91' },
-        'Health':        { icon:'fa-heartbeat',          color:'#e74c3c', iconBg:'#fde8e8', bg:'#fff5f5', border:'#f9bebe', barBg:'#f9bebe', textDark:'#a52b1f' },
-        'Bills':         { icon:'fa-file-invoice-dollar',color:'#1abc9c', iconBg:'#e2f9f4', bg:'#f4fefb', border:'#b2ead9', barBg:'#b2ead9', textDark:'#0e7a61' },
-        'Education':     { icon:'fa-graduation-cap',     color:'#2ecc71', iconBg:'#e4f9ec', bg:'#f4fff8', border:'#b4ecc8', barBg:'#b4ecc8', textDark:'#1a7a42' },
-        'Phone':         { icon:'fa-mobile-alt',         color:'#16a085', iconBg:'#e0f5f1', bg:'#f2fdfb', border:'#a5ddd3', barBg:'#a5ddd3', textDark:'#0d6157' },
-        'Beauty':        { icon:'fa-cut',                color:'#fd79a8', iconBg:'#fde8f2', bg:'#fff5fa', border:'#fbbcda', barBg:'#fbbcda', textDark:'#b5456e' },
-        'Sports':        { icon:'fa-running',            color:'#f39c12', iconBg:'#fef6e0', bg:'#fffdf5', border:'#fce4a0', barBg:'#fce4a0', textDark:'#9a6008' },
-        'Social':        { icon:'fa-users',              color:'#0984e3', iconBg:'#e3f4ff', bg:'#f2faff', border:'#aed9f7', barBg:'#aed9f7', textDark:'#065a9e' },
-        'Clothing':      { icon:'fa-tshirt',             color:'#6c5ce7', iconBg:'#ede8fc', bg:'#f8f6ff', border:'#c9bcf5', barBg:'#c9bcf5', textDark:'#3f27b0' },
-        'Car':           { icon:'fa-car',                color:'#b2bec3', iconBg:'#f0f2f3', bg:'#f9fafb', border:'#d9dfe2', barBg:'#d9dfe2', textDark:'#636e72' },
-        'Alcohol':       { icon:'fa-wine-glass-alt',     color:'#d63031', iconBg:'#fae6e6', bg:'#fff3f3', border:'#f5b8b8', barBg:'#f5b8b8', textDark:'#8c1c1c' },
-        'Electronics':   { icon:'fa-laptop',             color:'#00cec9', iconBg:'#e0faf9', bg:'#f2fefe', border:'#a2e9e8', barBg:'#a2e9e8', textDark:'#008685' },
-        'Travel':        { icon:'fa-plane',              color:'#0652DD', iconBg:'#e4edfc', bg:'#f4f8ff', border:'#b4caef', barBg:'#b4caef', textDark:'#03318c' },
-        'Pets':          { icon:'fa-paw',                color:'#fdcb6e', iconBg:'#fef9e8', bg:'#fffef5', border:'#fbeab6', barBg:'#fbeab6', textDark:'#9a7118' },
-        'Repairs':       { icon:'fa-wrench',             color:'#636e72', iconBg:'#eff0f1', bg:'#f8f9f9', border:'#cbd1d3', barBg:'#cbd1d3', textDark:'#343a3d' },
-        'Housing':       { icon:'fa-home',               color:'#e17055', iconBg:'#fceae6', bg:'#fff6f4', border:'#f5c0b0', barBg:'#f5c0b0', textDark:'#8c3820' },
-        'Gifts':         { icon:'fa-gift',               color:'#a29bfe', iconBg:'#edeafe', bg:'#f9f8ff', border:'#cdc9fb', barBg:'#cdc9fb', textDark:'#6c63d6' },
-        'Other':         { icon:'fa-cube',               color:'#74b9ff', iconBg:'#e8f4ff', bg:'#f3f9ff', border:'#b6d9fb', barBg:'#b6d9fb', textDark:'#2980b9' },
+        'Food':          { icon:'fa-utensils',           color:'#c2410c', iconBg:'#ffedd5', bg:'#fff7ed', border:'#fdba74', barBg:'#fed7aa', textDark:'#7c2d12' },
+        'Shopping':      { icon:'fa-shopping-bag',       color:'#be185d', iconBg:'#fce7f3', bg:'#fdf2f8', border:'#f9a8d4', barBg:'#fbcfe8', textDark:'#831843' },
+        'Transport':     { icon:'fa-bus',                color:'#0369a1', iconBg:'#e0f2fe', bg:'#f0f9ff', border:'#7dd3fc', barBg:'#bae6fd', textDark:'#0c4a6e' },
+        'Transportation':{ icon:'fa-bus',                color:'#0369a1', iconBg:'#e0f2fe', bg:'#f0f9ff', border:'#7dd3fc', barBg:'#bae6fd', textDark:'#0c4a6e' },
+        'Entertainment': { icon:'fa-film',               color:'#7e22ce', iconBg:'#f3e8ff', bg:'#faf5ff', border:'#d8b4fe', barBg:'#e9d5ff', textDark:'#581c87' },
+        'Health':        { icon:'fa-heartbeat',          color:'#b91c1c', iconBg:'#fee2e2', bg:'#fef2f2', border:'#fca5a5', barBg:'#fecaca', textDark:'#7f1d1d' },
+        'Healthcare':    { icon:'fa-heartbeat',          color:'#b91c1c', iconBg:'#fee2e2', bg:'#fef2f2', border:'#fca5a5', barBg:'#fecaca', textDark:'#7f1d1d' },
+        'Bills':         { icon:'fa-file-invoice-dollar',color:'#0f766e', iconBg:'#ccfbf1', bg:'#f0fdfa', border:'#5eead4', barBg:'#99f6e4', textDark:'#134e4a' },
+        'Education':     { icon:'fa-graduation-cap',     color:'#15803d', iconBg:'#dcfce7', bg:'#f0fdf4', border:'#86efac', barBg:'#bbf7d0', textDark:'#064e3b' },
+        'Phone':         { icon:'fa-mobile-alt',         color:'#0f766e', iconBg:'#ccfbf1', bg:'#f0fdfa', border:'#5eead4', barBg:'#99f6e4', textDark:'#134e4a' },
+        'Me':            { icon:'fa-user',               color:'#6d28d9', iconBg:'#ede9fe', bg:'#f5f3ff', border:'#c4b5fd', barBg:'#ddd6fe', textDark:'#4c1d95' },
+        'Other':         { icon:'fa-tag',                color:'#334155', iconBg:'#f1f5f9', bg:'#f8fafc', border:'#cbd5e1', barBg:'#e2e8f0', textDark:'#0f172a' }
     };
-    return map[category] || {
-        icon: 'fa-tag', color: '#6c5ce7', iconBg: '#ede8fc',
-        bg: '#f8f6ff', border: '#c9bcf5', barBg: '#c9bcf5', textDark: '#3f27b0'
-    };
+    return map[category] || map['Other'];
 }
 
 // Legacy getCategoryIcon wrapper

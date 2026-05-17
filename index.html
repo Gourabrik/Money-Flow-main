@@ -112,37 +112,31 @@
             </div>
 
             <!-- Daily Report -->
-            <div id="daily-report" class="p-6">
-                <h3 class="text-xl font-semibold mb-6 flex items-center gap-2">
-                    <i class="fas fa-chart-bar text-pink-500"></i> Today's Expenses - <span id="today-date"
-                        class="text-pink-600"></span>
+            <!-- Daily Report -->
+            <div id="daily-report" class="p-4 sm:p-6">
+                <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <i class="fas fa-chart-bar" style="color:#ec4899;"></i>
+                    <span>Today's Expenses</span>
+                    <span id="today-date" style="font-size:10px;font-weight:400;opacity:.55;margin-left:auto;"></span>
                 </h3>
-                <div class="space-y-4" id="daily-expenses-list">
-                    <div class="text-center py-12 text-gray-500">
-                        <i class="fas fa-receipt text-4xl mb-3 opacity-50"></i>
-                        <p>No expenses recorded today</p>
-                        <p class="text-sm mt-2">Click the + button to add your first expense!</p>
-                    </div>
-                </div>
-                <div class="mt-6 p-4 bg-pink-50 rounded-lg flex justify-between items-center">
-                    <span class="font-semibold text-lg">Daily Total:</span>
-                    <span class="text-xl font-bold text-red-500" id="daily-total">₹0.00</span>
+                <div id="daily-expenses-list" class="expense-grid"></div>
+                <div style="margin-top:12px;padding:12px 16px;border-radius:14px;display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);">
+                    <span style="font-size:13px;font-weight:600;opacity:.8;">Daily Total</span>
+                    <span id="daily-total" style="font-size:16px;font-weight:800;color:#f87171;">₹0</span>
                 </div>
             </div>
 
             <!-- Monthly Report -->
-            <div id="monthly-report" class="p-6 hidden">
-                <h3 class="text-xl font-semibold mb-6 flex items-center gap-2">
-                    <i class="fas fa-chart-pie text-purple-500"></i> Monthly Summary - <span id="current-month"
-                        class="text-purple-600"></span>
+            <div id="monthly-report" class="p-4 sm:p-6 hidden">
+                <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <i class="fas fa-chart-pie" style="color:#a855f7;"></i>
+                    <span>Monthly Summary</span>
+                    <span id="current-month" style="font-size:10px;font-weight:400;opacity:.55;margin-left:auto;"></span>
                 </h3>
-                <div class="grid grid-cols-4 gap-2 mb-6" id="monthly-categories" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
-                    <!-- Category totals will be populated here -->
-                </div>
-
-                <div class="p-4 bg-purple-50 rounded-lg flex justify-between items-center">
-                    <span class="font-semibold text-lg">Monthly Total:</span>
-                    <span class="text-xl font-bold text-red-500" id="monthly-total">₹0.00</span>
+                <div id="monthly-categories" class="expense-grid"></div>
+                <div style="margin-top:12px;padding:12px 16px;border-radius:14px;display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);">
+                    <span style="font-size:13px;font-weight:600;opacity:.8;">Monthly Total</span>
+                    <span id="monthly-total" style="font-size:16px;font-weight:800;color:#f87171;">₹0</span>
                 </div>
             </div>
 
@@ -789,7 +783,7 @@
             }
         });
     </script>
-    <script src="script.js?v=2.0"></script>
+    <script src="script_v2.js"></script>
 </body>
 
 </html>
