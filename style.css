@@ -1488,22 +1488,19 @@ textarea {
    ============================================ */
 .expense-grid {
     display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 12px !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 10px !important;
     margin-bottom: 12px !important;
     width: 100% !important;
 }
 
-@media (min-width: 650px) {
-    .expense-grid {
-        grid-template-columns: repeat(4, 1fr) !important;
-        gap: 14px !important;
-    }
-}
-
-/* Ensure category cards are uniform squares */
+/* Ensure category cards are uniform but not squishy */
 .expense-grid > div {
-    aspect-ratio: 1 / 1 !important;
+    min-height: 110px !important;
     box-sizing: border-box !important;
     min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
 }

@@ -147,29 +147,46 @@ const elements = {
 
 // Initialize
 function init() {
-    // ── If Firestore data was pre-loaded by firebase-auth-guard.js, use it ────
-    if (window._cloudData) {
-        const cd = window._cloudData;
-        if (cd.expenses.length > 0 || cd.income > 0) {
-            // Cloud has data – use it as the authoritative source
-            expenses     = cd.expenses;
-            income       = cd.income;
-            onlineIncome = cd.onlineIncome;
-            cashIncome   = cd.cashIncome;
-            savings      = cd.savings;
-            debts        = cd.debts;
+    // ── firebase-auth-guard.js always sets window._cloudData before calling init() ──
+    // Even if the user is brand new (empty arrays), we use cloud data so each user
+    // starts with a clean slate. We NEVER fall back to localStorage for another user.
+    if (window._cloudData !== undefined) {
+        const cd = window._cloudData || {};
+        const cloudExpenses = cd.expenses || [];
+        const cloudDebts    = cd.debts    || [];
 
-            // Also inject sub-collections into localStorage for backward-compat functions
-            if (cd.incomeHistory.length)  localStorage.setItem('incomeHistory',  JSON.stringify(cd.incomeHistory));
-            if (cd.savingsHistory.length) localStorage.setItem('savingsHistory', JSON.stringify(cd.savingsHistory));
-            if (cd.goals.length)          localStorage.setItem('savingsGoals',   JSON.stringify(cd.goals));
-            if (cd.achievements.length)   localStorage.setItem('achievements',   JSON.stringify(cd.achievements));
-        } else if (expenses.length > 0 || income > 0) {
-            // Cloud is empty but localStorage has data – migrate it up to Firestore
-            console.log('[Init] Migrating localStorage data to Firestore...');
-            _migrateLocalToCloud();
-        }
+        // Always use cloud data as the source of truth for this user
+        expenses     = cloudExpenses;
+        income       = cd.income       || 0;
+        onlineIncome = cd.onlineIncome  || 0;
+        cashIncome   = cd.cashIncome    || 0;
+        savings      = cd.savings       || 0;
+        debts        = cloudDebts;
+
+        // Populate localStorage for backward-compat functions that read it directly
+        // (income history, savings history, goals, achievements)
+        const incomeHistory  = cd.incomeHistory  || [];
+        const savingsHistory = cd.savingsHistory || [];
+        const goals          = cd.goals          || [];
+        const achievements   = cd.achievements   || [];
+
+        localStorage.setItem('expenses',       JSON.stringify(expenses));
+        localStorage.setItem('income',         income.toString());
+        localStorage.setItem('onlineIncome',   onlineIncome.toString());
+        localStorage.setItem('cashIncome',     cashIncome.toString());
+        localStorage.setItem('savings',        savings.toString());
+        localStorage.setItem('debts',          JSON.stringify(debts));
+        localStorage.setItem('incomeHistory',  JSON.stringify(incomeHistory));
+        localStorage.setItem('savingsHistory', JSON.stringify(savingsHistory));
+        localStorage.setItem('savingsGoals',   JSON.stringify(goals));
+        localStorage.setItem('achievements',   JSON.stringify(achievements));
+
         window._cloudData = null; // free memory
+        console.log('[Init] Loaded from Firestore:', { expenses: expenses.length, income, savings, debts: debts.length });
+    } else {
+        // Firestore was unreachable — use whatever localStorage has for this uid
+        // (auth guard already cleared it if a different user was here)
+        console.warn('[Init] Firestore data unavailable, using localStorage cache.');
     }
 
     // Check and refresh date first
@@ -197,6 +214,7 @@ function init() {
         }, 1000);
     }
 }
+
 
 // ── One-time migration: push localStorage data up to Firestore ───────────────
 async function _migrateLocalToCloud() {
@@ -2124,114 +2142,163 @@ function formatDateToISO(dateString) {
     return date.toISOString().split('T')[0];
 }
 
-// Function to download history as PDF
+// ── Download History as PDF ─────────────────────────────────────────────────
+// Uses browser's built-in print → Save as PDF (no CDN dependency, works everywhere)
 function downloadHistoryAsPDF() {
-    // Check if jsPDF is available (UMD global)
-    const jspdfLib = window.jspdf || window.jsPDF;
-    if (!jspdfLib) {
-        // Fallback: download as CSV instead
-        _downloadHistoryAsCSV();
+    // Build full transaction list from current session data (loaded from Firestore)
+    const transactions = getAllTransactions();
+    transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    if (transactions.length === 0) {
+        showToast('No transactions to export yet.', 'error');
         return;
     }
 
-    const jsPDF = jspdfLib.jsPDF || jspdfLib;
-    const transactions = getAllTransactions();
-    transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+    const user         = window._firebaseUser;
+    const userName     = user ? (user.isAnonymous ? 'Guest User' : (user.displayName || user.email || 'User')) : 'User';
+    const generatedAt  = new Date().toLocaleString();
+    const totalIncome  = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const totalExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const totalSavings = transactions.filter(t => t.type === 'savings-add').reduce((s, t) => s + t.amount, 0);
+    const netBalance   = totalIncome - totalExpense;
 
-    const doc = new jsPDF();
+    // Build table rows
+    const rows = transactions.map(t => {
+        const typeColors = {
+            'expense':         '#fee2e2',
+            'income':          '#dcfce7',
+            'savings-add':     '#dbeafe',
+            'savings-withdraw':'#fef9c3'
+        };
+        const typeBadge = {
+            'expense':         '<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;">Expense</span>',
+            'income':          '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;">Income</span>',
+            'savings-add':     '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;">Savings+</span>',
+            'savings-withdraw':'<span style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;">Savings−</span>'
+        };
+        const amountColor = t.type === 'income' || t.type === 'savings-add' ? '#16a34a' : '#dc2626';
+        const amountSign  = t.type === 'income' || t.type === 'savings-add' ? '+' : '-';
+        const bg          = typeColors[t.type] ? '' : '';
 
-    // Title
-    doc.setFontSize(18);
-    doc.setTextColor(40, 40, 40);
-    doc.text('MoneyFlow - Transaction History', 105, 18, null, null, 'center');
-    doc.setFontSize(10);
-    doc.setTextColor(120, 120, 120);
-    doc.text('Generated on: ' + new Date().toLocaleDateString(), 105, 26, null, null, 'center');
+        return `<tr>
+            <td>${formatDate(t.date)}</td>
+            <td>${typeBadge[t.type] || t.type}</td>
+            <td>${t.description || '—'}</td>
+            <td style="text-align:right;font-weight:600;color:${amountColor}">${amountSign}₹${Math.abs(t.amount).toFixed(2)}</td>
+        </tr>`;
+    }).join('');
 
-    // Check if autoTable plugin is available
-    if (typeof doc.autoTable === 'function') {
-        const tableData = transactions.map(t => [
-            formatDate(t.date),
-            getTypeText(t.type),
-            t.description || 'No description',
-            getAmountText(t.type, t.amount)
-        ]);
+    // Build complete HTML document
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MoneyFlow – Transaction Report</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', Arial, sans-serif; color: #1e293b; background: #f8fafc; padding: 32px; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
+        .logo { display: flex; align-items: center; gap: 10px; }
+        .logo-icon { width: 40px; height: 40px; background: linear-gradient(135deg,#6366f1,#3b82f6); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 16px; font-weight: 700; }
+        .logo h1 { font-size: 20px; font-weight: 700; color: #1e293b; }
+        .meta { text-align: right; font-size: 12px; color: #64748b; line-height: 1.6; }
+        .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; }
+        .stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; }
+        .stat .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 6px; }
+        .stat .value { font-size: 20px; font-weight: 700; }
+        .stat.income .value  { color: #16a34a; }
+        .stat.expense .value { color: #dc2626; }
+        .stat.balance .value { color: ${netBalance >= 0 ? '#16a34a' : '#dc2626'}; }
+        .stat.savings .value { color: #2563eb; }
+        table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+        thead tr { background: #6366f1; color: #fff; }
+        thead th { padding: 11px 14px; text-align: left; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        thead th:last-child { text-align: right; }
+        tbody tr { border-bottom: 1px solid #f1f5f9; }
+        tbody tr:last-child { border-bottom: none; }
+        tbody tr:hover { background: #f8fafc; }
+        tbody td { padding: 10px 14px; font-size: 13px; }
+        .footer { margin-top: 28px; font-size: 11px; color: #94a3b8; text-align: center; }
+        @media print {
+            body { background: #fff; padding: 20px; }
+            .no-print { display: none; }
+            table { box-shadow: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <div class="logo-icon">M</div>
+            <div><h1>MoneyFlow</h1><div style="font-size:12px;color:#64748b;">Transaction Report</div></div>
+        </div>
+        <div class="meta">
+            <strong>${userName}</strong><br>
+            Generated: ${generatedAt}<br>
+            Total Transactions: ${transactions.length}
+        </div>
+    </div>
 
-        doc.autoTable({
-            head: [['Date', 'Type', 'Description', 'Amount']],
-            body: tableData,
-            startY: 35,
-            styles: { fontSize: 9, cellPadding: 3 },
-            headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
-            alternateRowStyles: { fillColor: [245, 247, 255] },
-            columnStyles: { 3: { halign: 'right' } }
-        });
+    <div class="summary">
+        <div class="stat income">
+            <div class="label">Total Income</div>
+            <div class="value">₹${totalIncome.toFixed(2)}</div>
+        </div>
+        <div class="stat expense">
+            <div class="label">Total Expenses</div>
+            <div class="value">₹${totalExpense.toFixed(2)}</div>
+        </div>
+        <div class="stat balance">
+            <div class="label">Net Balance</div>
+            <div class="value">${netBalance >= 0 ? '+' : ''}₹${netBalance.toFixed(2)}</div>
+        </div>
+        <div class="stat savings">
+            <div class="label">Total Savings</div>
+            <div class="value">₹${totalSavings.toFixed(2)}</div>
+        </div>
+    </div>
 
-        // Summary block
-        const totalIncome   = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-        const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-        const finalY = (doc.lastAutoTable && doc.lastAutoTable.finalY) ? doc.lastAutoTable.finalY + 12 : 150;
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Description</th>
+                <th style="text-align:right">Amount</th>
+            </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+    </table>
 
-        doc.setFontSize(11);
-        doc.setTextColor(40, 40, 40);
-        doc.text('Summary', 14, finalY);
-        doc.setFontSize(9);
-        doc.text('Total Income:   \u20b9' + totalIncome.toFixed(2),   14, finalY + 8);
-        doc.text('Total Expenses: \u20b9' + totalExpenses.toFixed(2), 14, finalY + 15);
-        doc.text('Net Balance:    \u20b9' + (totalIncome - totalExpenses).toFixed(2), 14, finalY + 22);
-    } else {
-        // Fallback: draw a simple text table
-        doc.setFontSize(10);
-        doc.setTextColor(40, 40, 40);
-        let y = 38;
-        doc.text('Date        | Type     | Description                       | Amount', 14, y);
-        y += 6;
-        doc.line(14, y, 196, y);
-        y += 4;
-        transactions.forEach(t => {
-            if (y > 270) { doc.addPage(); y = 20; }
-            const line = `${formatDate(t.date).padEnd(12)}| ${getTypeText(t.type).padEnd(9)}| ${(t.description||'').substring(0, 33).padEnd(35)}| ${getAmountText(t.type, t.amount)}`;
-            doc.text(line, 14, y);
-            y += 6;
-        });
-    }
+    <div class="footer">
+        MoneyFlow · Exported on ${generatedAt} · Data synced from Firestore database
+    </div>
 
-    // Save
-    try {
-        const blob = doc.output('blob');
-        const url  = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'moneyflow-history.pdf';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(url), 100);
-    } catch (e) {
-        doc.save('moneyflow-history.pdf');
-    }
+    <script>
+        window.onload = function() {
+            setTimeout(function() { window.print(); }, 400);
+        };
+    <\/script>
+</body>
+</html>`;
 
-    showToast('PDF downloaded successfully!');
-}
-
-// Fallback: download as CSV if jsPDF completely unavailable
-function _downloadHistoryAsCSV() {
-    const transactions = getAllTransactions();
-    transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
-    const rows = [['Date', 'Type', 'Description', 'Amount']];
-    transactions.forEach(t => rows.push([
-        formatDate(t.date), getTypeText(t.type), t.description || '', getAmountText(t.type, t.amount)
-    ]));
-    const csv  = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    // Open in new window — browser will show "Save as PDF" in the print dialog
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url  = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url; link.download = 'moneyflow-history.csv';
-    document.body.appendChild(link); link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 100);
-    showToast('Downloaded as CSV (PDF library unavailable).');
+    const win  = window.open(url, '_blank', 'width=900,height=700');
+    if (!win) {
+        // Popup blocked — fallback: direct download as HTML
+        const link = document.createElement('a');
+        link.href = url; link.download = 'moneyflow-report.html';
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        showToast('Popup blocked. Report downloaded as HTML file instead.');
+    } else {
+        showToast('Report opened — use Print → Save as PDF');
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
+
 
 // New key-based delete — called by the ✕ buttons in the history table
 function deleteTransactionByKey(encodedKey) {

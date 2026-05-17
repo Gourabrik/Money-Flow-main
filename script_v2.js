@@ -1294,33 +1294,33 @@ function renderCategoryCard(category, total, pct) {
     const info = getCategoryInfo(category);
     return `<div style="
         background:${info.bg} !important;
-        border:2px solid ${info.border} !important;
-        border-radius:20px !important;
+        border:1px solid ${info.border} !important;
+        border-radius:14px !important;
         display:flex !important;
         flex-direction:column !important;
         align-items:center !important;
         justify-content:center !important;
-        padding:12px 6px !important;
+        padding:10px 4px !important;
         box-sizing:border-box !important;
         transition:transform .2s ease, box-shadow .2s ease !important;
-        box-shadow:0 4px 15px rgba(0,0,0,0.12) !important;
+        box-shadow:0 4px 10px rgba(0,0,0,0.3) !important;
         cursor:default !important;
         width:100% !important;
-        height:100% !important;
-        position:relative !important;
+        min-height:110px !important;
     "
-    onmouseover="this.style.transform='scale(1.04)';this.style.boxShadow='0 12px 30px rgba(0,0,0,0.25)'"
-    onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 15px rgba(0,0,0,0.12)'">
-        <div style="width:42px;height:42px;border-radius:12px;background:${info.iconBg} !important;display:flex;align-items:center;justify-content:center;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08) !important;">
-            <i class="fas ${info.icon}" style="font-size:1.2rem !important;color:${info.color} !important;"></i>
+    onmouseover="this.style.transform='scale(1.04)';this.style.boxShadow='0 10px 25px rgba(0,0,0,0.4)'"
+    onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 10px rgba(0,0,0,0.3)'">
+        <div style="width:34px;height:34px;border-radius:8px;background:${info.iconBg} !important;display:flex;align-items:center;justify-content:center;margin-bottom:6px;box-shadow:0 2px 6px rgba(0,0,0,0.15) !important;">
+            <i class="fas ${info.icon}" style="font-size:1rem !important;color:${info.color} !important;"></i>
         </div>
-        <span style="font-size:12px !important;font-weight:700 !important;color:${info.textDark} !important;text-align:center !important;display:block !important;width:100% !important;padding:0 4px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important;line-height:1.2 !important;margin-bottom:2px !important;">${category}</span>
-        <span style="font-size:18px !important;font-weight:900 !important;color:#000000 !important;margin-top:2px !important;line-height:1 !important;letter-spacing:-0.5px !important;">₹${Math.floor(total)}</span>
-        <div style="width:75%;height:6px;background:${info.barBg} !important;border-radius:10px !important;margin-top:10px !important;overflow:hidden !important;border:1px solid rgba(0,0,0,0.05) !important;">
-            <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,${info.color},${info.textDark}) !important;border-radius:10px !important;"></div>
+        <span style="font-size:10px !important;font-weight:700 !important;color:#cbd5e1 !important;text-align:center !important;display:block !important;width:100% !important;padding:0 2px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important;line-height:1.2 !important;margin-bottom:2px !important;text-transform:uppercase !important;letter-spacing:0.2px !important;">${category}</span>
+        <span style="font-size:16px !important;font-weight:800 !important;color:#ffffff !important;margin-top:1px !important;line-height:1 !important;">₹${Math.floor(total)}</span>
+        <div style="width:80%;height:4px;background:rgba(255,255,255,0.08) !important;border-radius:10px !important;margin-top:8px !important;overflow:hidden !important;">
+            <div style="height:100%;width:${pct}%;background:#facc15 !important;box-shadow:0 0 8px rgba(250,204,21,0.3) !important;border-radius:10px !important;"></div>
         </div>
     </div>`;
 }
+
 
 function updateSavingsChart() {
     const savingsHistory = JSON.parse(localStorage.getItem('savingsHistory')) || [];
@@ -1581,18 +1581,18 @@ function aggregateDataByCategory(expenses) {
 // Per-category color palette & icon map
 function getCategoryInfo(category) {
     const map = {
-        'Food':          { icon:'fa-utensils',           color:'#c2410c', iconBg:'#ffedd5', bg:'#fff7ed', border:'#fdba74', barBg:'#fed7aa', textDark:'#7c2d12' },
-        'Shopping':      { icon:'fa-shopping-bag',       color:'#be185d', iconBg:'#fce7f3', bg:'#fdf2f8', border:'#f9a8d4', barBg:'#fbcfe8', textDark:'#831843' },
-        'Transport':     { icon:'fa-bus',                color:'#0369a1', iconBg:'#e0f2fe', bg:'#f0f9ff', border:'#7dd3fc', barBg:'#bae6fd', textDark:'#0c4a6e' },
-        'Transportation':{ icon:'fa-bus',                color:'#0369a1', iconBg:'#e0f2fe', bg:'#f0f9ff', border:'#7dd3fc', barBg:'#bae6fd', textDark:'#0c4a6e' },
-        'Entertainment': { icon:'fa-film',               color:'#7e22ce', iconBg:'#f3e8ff', bg:'#faf5ff', border:'#d8b4fe', barBg:'#e9d5ff', textDark:'#581c87' },
-        'Health':        { icon:'fa-heartbeat',          color:'#b91c1c', iconBg:'#fee2e2', bg:'#fef2f2', border:'#fca5a5', barBg:'#fecaca', textDark:'#7f1d1d' },
-        'Healthcare':    { icon:'fa-heartbeat',          color:'#b91c1c', iconBg:'#fee2e2', bg:'#fef2f2', border:'#fca5a5', barBg:'#fecaca', textDark:'#7f1d1d' },
-        'Bills':         { icon:'fa-file-invoice-dollar',color:'#0f766e', iconBg:'#ccfbf1', bg:'#f0fdfa', border:'#5eead4', barBg:'#99f6e4', textDark:'#134e4a' },
-        'Education':     { icon:'fa-graduation-cap',     color:'#15803d', iconBg:'#dcfce7', bg:'#f0fdf4', border:'#86efac', barBg:'#bbf7d0', textDark:'#064e3b' },
-        'Phone':         { icon:'fa-mobile-alt',         color:'#0f766e', iconBg:'#ccfbf1', bg:'#f0fdfa', border:'#5eead4', barBg:'#99f6e4', textDark:'#134e4a' },
-        'Me':            { icon:'fa-user',               color:'#6d28d9', iconBg:'#ede9fe', bg:'#f5f3ff', border:'#c4b5fd', barBg:'#ddd6fe', textDark:'#4c1d95' },
-        'Other':         { icon:'fa-tag',                color:'#334155', iconBg:'#f1f5f9', bg:'#f8fafc', border:'#cbd5e1', barBg:'#e2e8f0', textDark:'#0f172a' }
+        'Food':          { icon:'fa-utensils',           color:'#facc15', iconBg:'rgba(250,204,21,0.1)', bg:'rgba(255,255,255,0.06)', border:'rgba(255,255,255,0.1)', barBg:'rgba(255,255,255,0.1)', textDark:'#ffffff' },
+        'Shopping':      { icon:'fa-shopping-bag',       color:'#facc15', iconBg:'rgba(250,204,21,0.1)', bg:'rgba(255,255,255,0.06)', border:'rgba(255,255,255,0.1)', barBg:'rgba(255,255,255,0.1)', textDark:'#ffffff' },
+        'Transport':     { icon:'fa-bus',                color:'#facc15', iconBg:'rgba(250,204,21,0.1)', bg:'rgba(255,255,255,0.06)', border:'rgba(255,255,255,0.1)', barBg:'rgba(255,255,255,0.1)', textDark:'#ffffff' },
+        'Transportation':{ icon:'fa-bus',                color:'#facc15', iconBg:'rgba(250,204,21,0.1)', bg:'rgba(255,255,255,0.06)', border:'rgba(255,255,255,0.1)', barBg:'rgba(255,255,255,0.1)', textDark:'#ffffff' },
+        'Entertainment': { icon:'fa-film',               color:'#facc15', iconBg:'rgba(250,204,21,0.1)', bg:'rgba(255,255,255,0.06)', border:'rgba(255,255,255,0.1)', barBg:'rgba(255,255,255,0.1)', textDark:'#ffffff' },
+        'Health':        { icon:'fa-heartbeat',          color:'#facc15', iconBg:'rgba(250,204,21,0.1)', bg:'rgba(255,255,255,0.06)', border:'rgba(255,255,255,0.1)', barBg:'rgba(255,255,255,0.1)', textDark:'#ffffff' },
+        'Healthcare':    { icon:'fa-heartbeat',          color:'#facc15', iconBg:'rgba(250,204,21,0.1)', bg:'rgba(255,255,255,0.06)', border:'rgba(255,255,255,0.1)', barBg:'rgba(255,255,255,0.1)', textDark:'#ffffff' },
+        'Bills':         { icon:'fa-file-invoice-dollar',color:'#facc15', iconBg:'rgba(250,204,21,0.1)', bg:'rgba(255,255,255,0.06)', border:'rgba(255,255,255,0.1)', barBg:'rgba(255,255,255,0.1)', textDark:'#ffffff' },
+        'Education':     { icon:'fa-graduation-cap',     color:'#facc15', iconBg:'rgba(250,204,21,0.1)', bg:'rgba(255,255,255,0.06)', border:'rgba(255,255,255,0.1)', barBg:'rgba(255,255,255,0.1)', textDark:'#ffffff' },
+        'Phone':         { icon:'fa-mobile-alt',         color:'#facc15', iconBg:'rgba(250,204,21,0.1)', bg:'rgba(255,255,255,0.06)', border:'rgba(255,255,255,0.1)', barBg:'rgba(255,255,255,0.1)', textDark:'#ffffff' },
+        'Me':            { icon:'fa-user',               color:'#facc15', iconBg:'rgba(250,204,21,0.1)', bg:'rgba(255,255,255,0.06)', border:'rgba(255,255,255,0.1)', barBg:'rgba(255,255,255,0.1)', textDark:'#ffffff' },
+        'Other':         { icon:'fa-tag',                color:'#facc15', iconBg:'rgba(250,204,21,0.1)', bg:'rgba(255,255,255,0.06)', border:'rgba(255,255,255,0.1)', barBg:'rgba(255,255,255,0.1)', textDark:'#ffffff' }
     };
     return map[category] || map['Other'];
 }

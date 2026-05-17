@@ -5,12 +5,39 @@ import {
     signOut
 } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-auth.js";
 
+// ── Keys that belong to a specific user (must be cleared on user switch) ─────
+const USER_STORAGE_KEYS = [
+    'expenses', 'income', 'onlineIncome', 'cashIncome', 'savings',
+    'incomeHistory', 'savingsHistory', 'savingsGoals', 'achievements',
+    'debts', 'lastUpdateDate', 'customCategories', 'userNotes',
+    'budgetLimits', 'weeklyLimit', 'monthlyLimit'
+];
+
+// ── Clear localStorage user data (called when a different user logs in) ───────
+function clearUserLocalStorage() {
+    USER_STORAGE_KEYS.forEach(key => localStorage.removeItem(key));
+    console.log('[AuthGuard] Cleared localStorage for new user session.');
+}
+
 // ── Auth Guard – redirect to login if not authenticated ─────────────────────
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
+        // User logged out – clear their localStorage data
+        clearUserLocalStorage();
+        localStorage.removeItem('_authUid');
         window.location.href = 'login.html';
         return;
     }
+
+    // ── User isolation: clear localStorage if a different user was here ────
+    const storedUid = localStorage.getItem('_authUid');
+    if (storedUid && storedUid !== user.uid) {
+        // Different user detected — wipe the previous user's local cache
+        clearUserLocalStorage();
+        console.log(`[AuthGuard] User switched (${storedUid} → ${user.uid}). Local cache cleared.`);
+    }
+    // Always stamp the current uid so future sessions can detect user switches
+    localStorage.setItem('_authUid', user.uid);
 
     // Expose user globally for script_v3.js and firebase-sync.js to use
     window._firebaseUser = user;
@@ -25,37 +52,37 @@ onAuthStateChanged(auth, async (user) => {
             : (user.displayName || user.email || 'User');
     }
 
-    // Wire the logout button
+    // Wire the logout button (use { once: true } to avoid stacking handlers)
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
+            clearUserLocalStorage();
+            localStorage.removeItem('_authUid');
             await signOut(auth);
             window.location.href = 'login.html';
-        });
+        }, { once: true });
     }
 
-    // ── Wait for firebase-sync.js to expose window.FS, then load cloud data ──
+    // ── Wait for firebase-sync.js to expose window.FS ─────────────────────
     const waitForFS = () => new Promise((resolve) => {
         if (window.FS) { resolve(); return; }
         const interval = setInterval(() => {
             if (window.FS) { clearInterval(interval); resolve(); }
         }, 50);
-        // Timeout after 5s – fall through to localStorage only
         setTimeout(() => { clearInterval(interval); resolve(); }, 5000);
     });
 
     await waitForFS();
 
-    // Ensure user document exists in Firestore
+    // ── Load cloud data and inject it before init() ────────────────────────
     if (window.FS) {
         await window.FS.ensureUserDoc(user.uid, user.email, user.isAnonymous);
 
-        // Load all data from Firestore and inject into global variables
-        console.log('[AuthGuard] Loading user data from Firestore...');
+        console.log('[AuthGuard] Loading user data from Firestore for uid:', user.uid);
         const cloudData = await window.FS.loadAll(user.uid);
 
         if (cloudData) {
-            // Inject cloud data into the global variables used by script_v3.js
+            // Always trust Firestore — even if empty (empty = new user, not "use local")
             window._cloudData = cloudData;
             console.log('[AuthGuard] Cloud data loaded:', {
                 expenses: cloudData.expenses.length,
@@ -64,21 +91,18 @@ onAuthStateChanged(auth, async (user) => {
                 debts: cloudData.debts.length,
             });
         } else {
-            console.warn('[AuthGuard] Cloud load failed, script_v3.js will use localStorage.');
+            // Firestore unreachable — use local data ONLY for this UID
+            console.warn('[AuthGuard] Firestore unavailable. Using localStorage for uid:', user.uid);
+            // _cloudData stays undefined — init() will use localStorage (which is now uid-stamped)
         }
     }
 
-    // Initialize the main app (init() defined in script_v3.js)
-    // DOMContentLoaded may have already fired, so call init directly
+    // ── Initialize the main app ────────────────────────────────────────────
     if (typeof init === 'function') {
         init();
     } else {
-        // Wait for script_v3.js to define init if it hasn't yet
         const waitForInit = setInterval(() => {
-            if (typeof init === 'function') {
-                clearInterval(waitForInit);
-                init();
-            }
+            if (typeof init === 'function') { clearInterval(waitForInit); init(); }
         }, 50);
         setTimeout(() => clearInterval(waitForInit), 5000);
     }

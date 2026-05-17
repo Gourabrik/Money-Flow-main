@@ -10,7 +10,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style_v3.css">
+    <!-- Version Marker: v3.0.0 -->
 </head>
 
 <body class="bg-gray-50 min-h-screen pt-28 pb-8">
@@ -24,10 +25,15 @@
     <!-- Navbar -->
     <nav class="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-pink-50 to-blue-50 border-b border-white/20">
         <div class="flex items-center justify-between px-6 pb-2 pt-10">
-            <!-- Menu button removed -->
             <div class="w-8"></div>
             <h1 class="font-bold tracking-normal">MoneyFlow</h1>
-            <div class="w-8"></div>
+            <div class="flex items-center gap-2">
+                <span id="nav-user-email" class="text-xs text-gray-500 hidden sm:block max-w-[120px] truncate"></span>
+                <button id="logout-btn" title="Sign Out"
+                    class="w-8 h-8 flex items-center justify-center rounded-full bg-white/60 hover:bg-red-100 border border-gray-200 text-gray-500 hover:text-red-500 transition-all" aria-label="Sign out">
+                    <i class="fas fa-sign-out-alt text-sm"></i>
+                </button>
+            </div>
         </div>
     </nav>
 
@@ -81,10 +87,6 @@
                     <button id="add-income-btn"
                         class="btn btn-success flex items-center justify-center gap-2 text-xs font-semibold px-4 py-2 uppercase tracking-wide shadow-sm w-full whitespace-nowrap">
                         <i class="fas fa-plus"></i> Add
-                    </button>
-                    <button id="reset-data-btn"
-                        class="btn btn-danger flex items-center justify-center gap-2 text-xs font-semibold px-4 py-2 uppercase tracking-wide shadow-sm w-full whitespace-nowrap">
-                        <i class="fas fa-trash-alt"></i> Reset
                     </button>
                 </div>
             </div>
@@ -770,20 +772,11 @@
         </button>
     </nav>
 
-    <script>
-        // Check if user has already logged in (for demo purposes, we'll use localStorage)
-        window.addEventListener('DOMContentLoaded', function () {
-            const hasLoggedIn = localStorage.getItem('moneyflow_loggedin');
-            if (!hasLoggedIn) {
-                // Redirect to login page if user hasn't logged in
-                window.location.href = 'login.html';
-            } else {
-                // Initialize the app if user has logged in
-                init();
-            }
-        });
-    </script>
-    <script src="script_v2.js"></script>
+    <!-- Firebase Sync – exposes window.FS with Firestore CRUD operations -->
+    <script type="module" src="firebase-sync.js"></script>
+    <!-- Firebase Auth guard – handles session check and logout -->
+    <script type="module" src="firebase-auth-guard.js"></script>
+    <script src="script_v3.js"></script>
 </body>
 
 </html>
