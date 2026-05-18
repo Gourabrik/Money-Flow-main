@@ -1100,6 +1100,17 @@ function addSavingsGoal() {
     goals.push(newGoal);
     localStorage.setItem('savingsGoals', JSON.stringify(goals));
 
+    // ── Sync to Firestore in the background ──────────────────────────────────
+    const uid = _uid();
+    if (uid && window.FS) {
+        window.FS.saveGoal(uid, newGoal).then(fsId => {
+            if (fsId) {
+                newGoal._fsId = fsId;
+                localStorage.setItem('savingsGoals', JSON.stringify(goals));
+            }
+        });
+    }
+
     elements.goalAmount.value = '';
     elements.goalDescription.value = '';
     document.getElementById('goal-date').value = '';
@@ -1210,16 +1221,31 @@ function updateAllGoalsProgress() {
 // Add achievements
 function addAchievements(newGoals) {
     const achievements = JSON.parse(localStorage.getItem('achievements')) || [];
+    const uid = _uid();
 
     newGoals.forEach(goal => {
-        achievements.push({
+        const newAchievement = {
             id: Date.now() + Math.random(),
             type: 'goal_completed',
             title: `Goal Achieved: ${goal.description}`,
             description: `Completed ₹${goal.amount.toLocaleString()} savings goal`,
             date: new Date().toISOString(),
-            icon: 'trophy'
-        });
+            icon: 'trophy',
+            timestamp: new Date().toISOString()
+        };
+        achievements.push(newAchievement);
+
+        if (uid && window.FS) {
+            window.FS.saveAchievement(uid, newAchievement).then(fsId => {
+                if (fsId) {
+                    newAchievement._fsId = fsId;
+                    localStorage.setItem('achievements', JSON.stringify(achievements));
+                }
+            });
+            if (goal._fsId) {
+                window.FS.saveGoal(uid, goal); // Update goal completion status in Firestore
+            }
+        }
     });
 
     localStorage.setItem('achievements', JSON.stringify(achievements));
@@ -1249,9 +1275,17 @@ function loadAchievements() {
 // Delete goal
 function deleteGoal(goalId) {
     if (confirm('Are you sure you want to delete this goal?')) {
-        const goals = JSON.parse(localStorage.getItem('savingsGoals')) || [];
-        const updatedGoals = goals.filter(goal => goal.id !== goalId);
-        localStorage.setItem('savingsGoals', JSON.stringify(updatedGoals));
+        let goals = JSON.parse(localStorage.getItem('savingsGoals')) || [];
+        const toDelete = goals.find(g => g.id === goalId);
+        goals = goals.filter(goal => goal.id !== goalId);
+        localStorage.setItem('savingsGoals', JSON.stringify(goals));
+
+        // ── Sync to Firestore in the background ──────────────────────────────────
+        const uid = _uid();
+        if (uid && window.FS && toDelete && toDelete._fsId) {
+            window.FS.deleteGoal(uid, toDelete._fsId);
+        }
+
         loadSavingsGoals();
         showToast('Goal deleted successfully!');
     }
@@ -1281,13 +1315,27 @@ function handleAddSavings() {
 
     const savingsHistory = JSON.parse(localStorage.getItem('savingsHistory')) || [];
     const currentDate = getCurrentDateString();
-    savingsHistory.push({
+    const newEntry = {
         date: currentDate,
         amount,
-        type: 'savings-add'
-    });
+        type: 'savings-add',
+        timestamp: new Date().toISOString()
+    };
+    savingsHistory.push(newEntry);
 
     localStorage.setItem('savingsHistory', JSON.stringify(savingsHistory));
+
+    // ── Sync to Firestore in the background ──────────────────────────────────
+    const uid = _uid();
+    if (uid && window.FS) {
+        window.FS.saveSavingsEntry(uid, newEntry).then(fsId => {
+            if (fsId) {
+                newEntry._fsId = fsId;
+                localStorage.setItem('savingsHistory', JSON.stringify(savingsHistory));
+            }
+        });
+        window.FS.saveUserTotals(uid, { savings });
+    }
 
     updateSavingsUI();
     updatePriceHistoryChart();
@@ -1321,13 +1369,27 @@ function handleWithdrawSavings() {
 
     const savingsHistory = JSON.parse(localStorage.getItem('savingsHistory')) || [];
     const currentDate = getCurrentDateString();
-    savingsHistory.push({
+    const newEntry = {
         date: currentDate,
         amount,
-        type: 'savings-withdraw'
-    });
+        type: 'savings-withdraw',
+        timestamp: new Date().toISOString()
+    };
+    savingsHistory.push(newEntry);
 
     localStorage.setItem('savingsHistory', JSON.stringify(savingsHistory));
+
+    // ── Sync to Firestore in the background ──────────────────────────────────
+    const uid = _uid();
+    if (uid && window.FS) {
+        window.FS.saveSavingsEntry(uid, newEntry).then(fsId => {
+            if (fsId) {
+                newEntry._fsId = fsId;
+                localStorage.setItem('savingsHistory', JSON.stringify(savingsHistory));
+            }
+        });
+        window.FS.saveUserTotals(uid, { savings });
+    }
 
     updateSavingsUI();
     updatePriceHistoryChart();
@@ -2153,8 +2215,17 @@ function formatDateToISO(dateString) {
 }
 
 // ── Download History as PDF ─────────────────────────────────────────────────
-// Uses browser's built-in print → Save as PDF (no CDN dependency, works everywhere)
+// Uses jsPDF for a direct PDF file download
 function downloadHistoryAsPDF() {
+    // Check if jsPDF is available
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        showToast('PDF library is still loading. Please try again in a moment.', 'error');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
     // Build full transaction list from current session data (loaded from Firestore)
     const transactions = getAllTransactions();
     transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -2172,141 +2243,108 @@ function downloadHistoryAsPDF() {
     const totalSavings = transactions.filter(t => t.type === 'savings-add').reduce((s, t) => s + t.amount, 0);
     const netBalance   = totalIncome - totalExpense;
 
-    // Build table rows
-    const rows = transactions.map(t => {
-        const typeColors = {
-            'expense':         '#fee2e2',
-            'income':          '#dcfce7',
-            'savings-add':     '#dbeafe',
-            'savings-withdraw':'#fef9c3'
-        };
-        const typeBadge = {
-            'expense':         '<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;">Expense</span>',
-            'income':          '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;">Income</span>',
-            'savings-add':     '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;">Savings+</span>',
-            'savings-withdraw':'<span style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;">Savings−</span>'
-        };
-        const amountColor = t.type === 'income' || t.type === 'savings-add' ? '#16a34a' : '#dc2626';
-        const amountSign  = t.type === 'income' || t.type === 'savings-add' ? '+' : '-';
-        const bg          = typeColors[t.type] ? '' : '';
+    // Header
+    doc.setFontSize(22);
+    doc.setTextColor(30, 41, 59); // text-slate-800
+    doc.text('MoneyFlow', 14, 22);
 
-        return `<tr>
-            <td>${formatDate(t.date)}</td>
-            <td>${typeBadge[t.type] || t.type}</td>
-            <td>${t.description || '—'}</td>
-            <td style="text-align:right;font-weight:600;color:${amountColor}">${amountSign}₹${Math.abs(t.amount).toFixed(2)}</td>
-        </tr>`;
-    }).join('');
+    doc.setFontSize(12);
+    doc.setTextColor(100, 116, 139); // text-slate-500
+    doc.text('Transaction Report', 14, 30);
 
-    // Build complete HTML document
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>MoneyFlow – Transaction Report</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Inter', Arial, sans-serif; color: #1e293b; background: #f8fafc; padding: 32px; }
-        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
-        .logo { display: flex; align-items: center; gap: 10px; }
-        .logo-icon { width: 40px; height: 40px; background: linear-gradient(135deg,#6366f1,#3b82f6); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 16px; font-weight: 700; }
-        .logo h1 { font-size: 20px; font-weight: 700; color: #1e293b; }
-        .meta { text-align: right; font-size: 12px; color: #64748b; line-height: 1.6; }
-        .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; }
-        .stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; }
-        .stat .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 6px; }
-        .stat .value { font-size: 20px; font-weight: 700; }
-        .stat.income .value  { color: #16a34a; }
-        .stat.expense .value { color: #dc2626; }
-        .stat.balance .value { color: ${netBalance >= 0 ? '#16a34a' : '#dc2626'}; }
-        .stat.savings .value { color: #2563eb; }
-        table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-        thead tr { background: #6366f1; color: #fff; }
-        thead th { padding: 11px 14px; text-align: left; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-        thead th:last-child { text-align: right; }
-        tbody tr { border-bottom: 1px solid #f1f5f9; }
-        tbody tr:last-child { border-bottom: none; }
-        tbody tr:hover { background: #f8fafc; }
-        tbody td { padding: 10px 14px; font-size: 13px; }
-        .footer { margin-top: 28px; font-size: 11px; color: #94a3b8; text-align: center; }
-        @media print {
-            body { background: #fff; padding: 20px; }
-            .no-print { display: none; }
-            table { box-shadow: none; }
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <div class="logo">
-            <div class="logo-icon">M</div>
-            <div><h1>MoneyFlow</h1><div style="font-size:12px;color:#64748b;">Transaction Report</div></div>
-        </div>
-        <div class="meta">
-            <strong>${userName}</strong><br>
-            Generated: ${generatedAt}<br>
-            Total Transactions: ${transactions.length}
-        </div>
-    </div>
+    // Meta details (Right aligned)
+    doc.setFontSize(10);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`User: ${userName}`, 196, 22, { align: 'right' });
+    doc.text(`Generated: ${generatedAt}`, 196, 28, { align: 'right' });
+    doc.text(`Total Transactions: ${transactions.length}`, 196, 34, { align: 'right' });
 
-    <div class="summary">
-        <div class="stat income">
-            <div class="label">Total Income</div>
-            <div class="value">₹${totalIncome.toFixed(2)}</div>
-        </div>
-        <div class="stat expense">
-            <div class="label">Total Expenses</div>
-            <div class="value">₹${totalExpense.toFixed(2)}</div>
-        </div>
-        <div class="stat balance">
-            <div class="label">Net Balance</div>
-            <div class="value">${netBalance >= 0 ? '+' : ''}₹${netBalance.toFixed(2)}</div>
-        </div>
-        <div class="stat savings">
-            <div class="label">Total Savings</div>
-            <div class="value">₹${totalSavings.toFixed(2)}</div>
-        </div>
-    </div>
+    // Summary block
+    doc.setDrawColor(226, 232, 240); // slate-200
+    doc.setFillColor(248, 250, 252); // slate-50
+    doc.roundedRect(14, 40, 182, 20, 3, 3, 'FD');
 
-    <table>
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Type</th>
-                <th>Description</th>
-                <th style="text-align:right">Amount</th>
-            </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-    </table>
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139); // slate-500
+    doc.text('Total Income', 20, 47);
+    doc.text('Total Expenses', 65, 47);
+    doc.text('Net Balance', 115, 47);
+    doc.text('Total Savings', 160, 47);
 
-    <div class="footer">
-        MoneyFlow · Exported on ${generatedAt} · Data synced from Firestore database
-    </div>
+    doc.setFontSize(12);
+    doc.setTextColor(22, 163, 74); // green-600
+    doc.text(`+ Rs. ${totalIncome.toFixed(2)}`, 20, 54);
 
-    <script>
-        window.onload = function() {
-            setTimeout(function() { window.print(); }, 400);
-        };
-    <\/script>
-</body>
-</html>`;
+    doc.setTextColor(220, 38, 38); // red-600
+    doc.text(`- Rs. ${totalExpense.toFixed(2)}`, 65, 54);
 
-    // Open in new window — browser will show "Save as PDF" in the print dialog
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const win  = window.open(url, '_blank', 'width=900,height=700');
-    if (!win) {
-        // Popup blocked — fallback: direct download as HTML
-        const link = document.createElement('a');
-        link.href = url; link.download = 'moneyflow-report.html';
-        document.body.appendChild(link); link.click(); document.body.removeChild(link);
-        showToast('Popup blocked. Report downloaded as HTML file instead.');
+    if (netBalance >= 0) {
+        doc.setTextColor(22, 163, 74);
+        doc.text(`+ Rs. ${netBalance.toFixed(2)}`, 115, 54);
     } else {
-        showToast('Report opened — use Print → Save as PDF');
+        doc.setTextColor(220, 38, 38);
+        doc.text(`- Rs. ${Math.abs(netBalance).toFixed(2)}`, 115, 54);
     }
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
+
+    doc.setTextColor(37, 99, 235); // blue-600
+    doc.text(`Rs. ${totalSavings.toFixed(2)}`, 160, 54);
+
+    // Build Table Data
+    const tableColumn = ["Date", "Type", "Description", "Amount (Rs)"];
+    const tableRows = [];
+
+    transactions.forEach(t => {
+        let typeStr = '';
+        if (t.type === 'expense') typeStr = 'Expense';
+        else if (t.type === 'income') typeStr = 'Income';
+        else if (t.type === 'savings-add') typeStr = 'Savings+';
+        else if (t.type === 'savings-withdraw') typeStr = 'Savings-';
+        else typeStr = t.type;
+
+        const amountSign = (t.type === 'income' || t.type === 'savings-add') ? '+' : '-';
+        const formattedAmount = `${amountSign} ${Math.abs(t.amount).toFixed(2)}`;
+
+        tableRows.push([
+            formatDate(t.date),
+            typeStr,
+            t.description || '-',
+            formattedAmount
+        ]);
+    });
+
+    // Generate Table
+    doc.autoTable({
+        startY: 65,
+        head: [tableColumn],
+        body: tableRows,
+        theme: 'striped',
+        headStyles: { fillColor: [99, 102, 241], textColor: 255 }, // indigo-500
+        styles: { fontSize: 10, cellPadding: 4 },
+        columnStyles: {
+            3: { halign: 'right', fontStyle: 'bold' } // Right align amount
+        },
+        willDrawCell: function(data) {
+            // Apply colors to amounts
+            if (data.section === 'body' && data.column.index === 3) {
+                const text = data.cell.raw;
+                if (text.startsWith('+')) {
+                    data.cell.styles.textColor = [22, 163, 74]; // green-600
+                } else if (text.startsWith('-')) {
+                    data.cell.styles.textColor = [220, 38, 38]; // red-600
+                }
+            }
+        }
+    });
+
+    // Footer
+    const finalY = doc.lastAutoTable.finalY || 65;
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184); // slate-400
+    doc.text(`MoneyFlow Report - Generated on ${generatedAt}`, 14, finalY + 10);
+
+    // Save PDF
+    doc.save('MoneyFlow_Report.pdf');
+    showToast('Report downloaded as PDF');
 }
 
 
