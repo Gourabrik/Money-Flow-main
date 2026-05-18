@@ -152,16 +152,31 @@ function init() {
     // starts with a clean slate. We NEVER fall back to localStorage for another user.
     if (window._cloudData !== undefined) {
         const cd = window._cloudData || {};
+        const profile       = cd.profile || {};
         const cloudExpenses = cd.expenses || [];
         const cloudDebts    = cd.debts    || [];
 
-        // Always use cloud data as the source of truth for this user
-        expenses     = cloudExpenses;
-        income       = cd.income       || 0;
-        onlineIncome = cd.onlineIncome  || 0;
-        cashIncome   = cd.cashIncome    || 0;
-        savings      = cd.savings       || 0;
-        debts        = cloudDebts;
+        // Check if we need to migrate local data to cloud
+        const localExpenses = JSON.parse(localStorage.getItem('expenses')) || [];
+        
+        if (window._pendingMigration || (cloudExpenses.length === 0 && localExpenses.length > 0)) {
+            console.log('[Init] Triggering migration from local to cloud...');
+            // Keep local data! We do NOT overwrite local variables with empty cloud arrays.
+            // Fire & forget migration
+            if (typeof _migrateLocalToCloud === 'function') {
+                _migrateLocalToCloud(); 
+            }
+            delete window._pendingMigration;
+            localStorage.removeItem('_wasGuest');
+        } else {
+            // Normal flow: Trust cloud
+            expenses     = cloudExpenses;
+            income       = profile.income       || 0;
+            onlineIncome = profile.onlineIncome  || 0;
+            cashIncome   = profile.cashIncome    || 0;
+            savings      = profile.savings       || 0;
+            debts        = cloudDebts;
+        }
 
         // Populate localStorage for backward-compat functions that read it directly
         // (income history, savings history, goals, achievements)
@@ -189,6 +204,19 @@ function init() {
         console.warn('[Init] Firestore data unavailable, using localStorage cache.');
     }
 
+    // Set Chart.js defaults for dark theme
+    if (typeof Chart !== 'undefined') {
+        Chart.defaults.color = '#ffffff';
+        Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.1)';
+    }
+
+    // Initialize expense date input
+    const expenseDateInput = document.getElementById('expense-date');
+    if (expenseDateInput) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        expenseDateInput.value = todayStr;
+    }
+
     // Check and refresh date first
     checkAndRefreshDate();
 
@@ -204,8 +232,19 @@ function init() {
     // Initialize heatmap date
     currentHeatmapDate = new Date();
 
-    updateUI();
+    const uid = _uid();
+    if (uid && window.FS && window.FS.startRealtimeSync) {
+        setupRealtimeListeners(uid);
+    } else {
+        updateUI();
+    }
     setupEventListeners();
+
+    // Add listener for PDF download button
+    const downloadPdfBtn = document.getElementById('download-pdf-btn');
+    if (downloadPdfBtn) {
+        downloadPdfBtn.addEventListener('click', downloadHistoryAsPDF);
+    }
 
     // Show welcome message
     if (expenses.length === 0 && income === 0) {
@@ -213,6 +252,67 @@ function init() {
             showToast('Welcome! Start by adding some income and expenses.');
         }, 1000);
     }
+}
+
+// ── Real-Time Sync Handlers ──────────────────────────────────────────────────
+let _debouncedUpdateTimeout = null;
+function debouncedRefresh() {
+    if (_debouncedUpdateTimeout) clearTimeout(_debouncedUpdateTimeout);
+    _debouncedUpdateTimeout = setTimeout(() => {
+        updateUI();
+        if (typeof updateSavingsUI === 'function') updateSavingsUI();
+        if (typeof updateDebtUI === 'function') updateDebtUI();
+        if (typeof loadSavingsGoals === 'function') loadSavingsGoals();
+        if (typeof loadAchievements === 'function') loadAchievements();
+        if (typeof updatePriceHistoryChart === 'function') updatePriceHistoryChart();
+    }, 150);
+}
+
+function setupRealtimeListeners(uid) {
+    if (window._fsUnsubscribes) {
+        window._fsUnsubscribes.forEach(unsub => unsub());
+    }
+
+    console.log('[Sync] Starting real-time Firestore listeners...');
+    window._fsUnsubscribes = window.FS.startRealtimeSync(uid, {
+        onProfile: (data) => {
+            income = data.income || 0;
+            onlineIncome = data.onlineIncome || 0;
+            cashIncome = data.cashIncome || 0;
+            savings = data.savings || 0;
+            localStorage.setItem('income', income.toString());
+            localStorage.setItem('onlineIncome', onlineIncome.toString());
+            localStorage.setItem('cashIncome', cashIncome.toString());
+            localStorage.setItem('savings', savings.toString());
+            debouncedRefresh();
+        },
+        onExpenses: (data) => {
+            expenses = data;
+            localStorage.setItem('expenses', JSON.stringify(expenses));
+            debouncedRefresh();
+        },
+        onIncomeHistory: (data) => {
+            localStorage.setItem('incomeHistory', JSON.stringify(data));
+            debouncedRefresh();
+        },
+        onDebts: (data) => {
+            debts = data;
+            localStorage.setItem('debts', JSON.stringify(debts));
+            debouncedRefresh();
+        },
+        onSavingsHistory: (data) => {
+            localStorage.setItem('savingsHistory', JSON.stringify(data));
+            debouncedRefresh();
+        },
+        onGoals: (data) => {
+            localStorage.setItem('savingsGoals', JSON.stringify(data));
+            debouncedRefresh();
+        },
+        onAchievements: (data) => {
+            localStorage.setItem('achievements', JSON.stringify(data));
+            debouncedRefresh();
+        }
+    });
 }
 
 
@@ -1788,57 +1888,7 @@ function loadCustomCategories() {
     });
 }
 
-// Initialize the app
-function init() {
-    try {
-        // Set Chart.js defaults for dark theme
-        if (typeof Chart !== 'undefined') {
-            Chart.defaults.color = '#ffffff';
-            Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.1)';
-        }
 
-        const today = new Date();
-
-        if (elements.todayDate) {
-            elements.todayDate.textContent = today.toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-        }
-
-        if (elements.currentMonth) {
-            elements.currentMonth.textContent = today.toLocaleDateString('en-US', {
-                month: 'long',
-                year: 'numeric'
-            });
-        }
-
-        const expenseDateInput = document.getElementById('expense-date');
-        if (expenseDateInput) {
-            expenseDateInput.value = today.toISOString().split('T')[0];
-        }
-
-        loadCustomCategories();
-        setupEventListeners();
-
-        // Add listener for PDF download button
-        const downloadPdfBtn = document.getElementById('download-pdf-btn');
-        if (downloadPdfBtn) {
-            downloadPdfBtn.addEventListener('click', downloadHistoryAsPDF);
-        }
-        updateUI();
-
-        if (expenses.length === 0 && income === 0) {
-            setTimeout(() => {
-                showToast('Welcome! Start by adding some income and expenses.');
-            }, 1000);
-        }
-    } catch (error) {
-        console.error('Error initializing app:', error);
-    }
-}
 
 // Price History Chart
 let priceHistoryChartInstance = null;

@@ -14,7 +14,7 @@
 import { db } from './firebase.js';
 import {
     doc, setDoc, getDoc, addDoc, deleteDoc, updateDoc,
-    collection, getDocs, query, orderBy,
+    collection, getDocs, query, orderBy, onSnapshot,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-firestore.js";
 
@@ -68,6 +68,62 @@ async function loadAll(uid) {
         console.error('[FS] loadAll failed, falling back to localStorage:', err);
         return null; // signal to fall back to localStorage
     }
+}
+
+// ── Real-Time Listeners ──────────────────────────────────────────────────────
+function startRealtimeSync(uid, callbacks) {
+    const unsubscribes = [];
+
+    // 1. Profile Listener
+    unsubscribes.push(onSnapshot(userRef(uid), (snap) => {
+        if (snap.exists() && callbacks.onProfile) {
+            callbacks.onProfile(snap.data());
+        }
+    }));
+
+    // 2. Expenses Listener
+    unsubscribes.push(onSnapshot(query(subCol(uid, 'expenses'), orderBy('timestamp', 'desc')), (snap) => {
+        if (callbacks.onExpenses) {
+            callbacks.onExpenses(snap.docs.map(d => ({ _fsId: d.id, ...d.data() })));
+        }
+    }));
+
+    // 3. Income History Listener
+    unsubscribes.push(onSnapshot(query(subCol(uid, 'incomeHistory'), orderBy('timestamp', 'desc')), (snap) => {
+        if (callbacks.onIncomeHistory) {
+            callbacks.onIncomeHistory(snap.docs.map(d => ({ _fsId: d.id, ...d.data() })));
+        }
+    }));
+
+    // 4. Debts Listener
+    unsubscribes.push(onSnapshot(query(subCol(uid, 'debts'), orderBy('createdDate', 'desc')), (snap) => {
+        if (callbacks.onDebts) {
+            callbacks.onDebts(snap.docs.map(d => ({ _fsId: d.id, ...d.data() })));
+        }
+    }));
+
+    // 5. Savings History Listener
+    unsubscribes.push(onSnapshot(query(subCol(uid, 'savingsHistory'), orderBy('timestamp', 'desc')), (snap) => {
+        if (callbacks.onSavingsHistory) {
+            callbacks.onSavingsHistory(snap.docs.map(d => ({ _fsId: d.id, ...d.data() })));
+        }
+    }));
+
+    // 6. Goals Listener
+    unsubscribes.push(onSnapshot(subCol(uid, 'goals'), (snap) => {
+        if (callbacks.onGoals) {
+            callbacks.onGoals(snap.docs.map(d => ({ _fsId: d.id, ...d.data() })));
+        }
+    }));
+
+    // 7. Achievements Listener
+    unsubscribes.push(onSnapshot(subCol(uid, 'achievements'), (snap) => {
+        if (callbacks.onAchievements) {
+            callbacks.onAchievements(snap.docs.map(d => ({ _fsId: d.id, ...d.data() })));
+        }
+    }));
+
+    return unsubscribes;
 }
 
 // ── Ensure the user document exists (creates it if needed) ───────────────────
@@ -272,6 +328,7 @@ window.FS = {
     saveGoal,
     deleteGoal,
     saveAchievement,
+    startRealtimeSync,
 };
 
 console.log('[FS] firebase-sync.js loaded — window.FS ready');

@@ -31,10 +31,17 @@ onAuthStateChanged(auth, async (user) => {
 
     // ── User isolation: clear localStorage if a different user was here ────
     const storedUid = localStorage.getItem('_authUid');
+    const wasGuest = localStorage.getItem('_wasGuest') === 'true';
+
     if (storedUid && storedUid !== user.uid) {
-        // Different user detected — wipe the previous user's local cache
-        clearUserLocalStorage();
-        console.log(`[AuthGuard] User switched (${storedUid} → ${user.uid}). Local cache cleared.`);
+        if (wasGuest) {
+            console.log(`[AuthGuard] Upgrading from Guest (${storedUid} → ${user.uid}). Keeping local cache for migration.`);
+            window._pendingMigration = true;
+        } else {
+            // Different user detected — wipe the previous user's local cache
+            clearUserLocalStorage();
+            console.log(`[AuthGuard] User switched (${storedUid} → ${user.uid}). Local cache cleared.`);
+        }
     }
     // Always stamp the current uid so future sessions can detect user switches
     localStorage.setItem('_authUid', user.uid);
@@ -56,7 +63,20 @@ onAuthStateChanged(auth, async (user) => {
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
-            clearUserLocalStorage();
+            if (window._fsUnsubscribes) {
+                window._fsUnsubscribes.forEach(unsub => unsub());
+                window._fsUnsubscribes = [];
+            }
+
+            const isGuest = window._firebaseUser && window._firebaseUser.isAnonymous;
+            if (isGuest) {
+                localStorage.setItem('_wasGuest', 'true');
+                // Do NOT wipe local storage here! Let guest data persist for the next login.
+            } else {
+                clearUserLocalStorage();
+                localStorage.removeItem('_wasGuest');
+            }
+
             localStorage.removeItem('_authUid');
             await signOut(auth);
             window.location.href = 'login.html';
