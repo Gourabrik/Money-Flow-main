@@ -411,6 +411,34 @@ function setupEventListeners() {
     if (savingsTab) savingsTab.addEventListener('click', () => switchDebtSavingsTab('savings'));
     if (analysisTab) analysisTab.addEventListener('click', () => switchDebtSavingsTab('analysis'));
 
+    // Notes tab
+    const notesTab = document.getElementById('notes-tab');
+    if (notesTab) notesTab.addEventListener('click', () => switchDebtSavingsTab('notes'));
+
+    // Add Note button
+    const addNoteBtn = document.getElementById('add-note-btn');
+    if (addNoteBtn) addNoteBtn.addEventListener('click', addNote);
+
+    // From Savings button in income modal
+    const fromSavingsBtn = document.getElementById('from-savings-btn');
+    if (fromSavingsBtn) fromSavingsBtn.addEventListener('click', showFromSavingsForm);
+
+    // From Savings form submit
+    const fromSavingsForm = document.getElementById('from-savings-form');
+    if (fromSavingsForm) fromSavingsForm.addEventListener('submit', handleFromSavingsTransfer);
+
+    // Savings destination toggle
+    const savingsToOnlineBtn = document.getElementById('savings-to-online-btn');
+    const savingsToCashBtn = document.getElementById('savings-to-cash-btn');
+    if (savingsToOnlineBtn) savingsToOnlineBtn.addEventListener('click', () => selectSavingsDest('online'));
+    if (savingsToCashBtn) savingsToCashBtn.addEventListener('click', () => selectSavingsDest('cash'));
+
+    // Move-to-Savings source toggle
+    const moveFromOnlineBtn = document.getElementById('move-from-online-btn');
+    const moveFromCashBtn = document.getElementById('move-from-cash-btn');
+    if (moveFromOnlineBtn) moveFromOnlineBtn.addEventListener('click', () => selectMoveSource('online'));
+    if (moveFromCashBtn) moveFromCashBtn.addEventListener('click', () => selectMoveSource('cash'));
+
     // Notes functionality
     const notesTextarea = document.getElementById('notes-textarea');
     if (notesTextarea) {
@@ -698,19 +726,23 @@ function switchDebtSavingsTab(tab) {
     const debtTab = document.getElementById('debt-tab');
     const savingsTab = document.getElementById('savings-tab');
     const analysisTab = document.getElementById('analysis-tab');
+    const notesTab = document.getElementById('notes-tab');
     const debtContent = document.getElementById('debt-content');
     const savingsContent = document.getElementById('savings-content');
     const analysisContent = document.getElementById('analysis-content');
+    const notesContent = document.getElementById('notes-content');
 
     // Reset all tabs
     debtTab.className = 'debt-savings-tab text-sm px-6 py-2 rounded-lg bg-white text-red-600 hover:bg-red-50 font-medium flex items-center gap-2 focus:outline-none';
     savingsTab.className = 'debt-savings-tab text-sm px-6 py-2 rounded-lg bg-white text-purple-600 hover:bg-purple-50 font-medium flex items-center gap-2 focus:outline-none';
     analysisTab.className = 'debt-savings-tab text-sm px-6 py-2 rounded-lg bg-white text-blue-600 hover:bg-blue-50 font-medium flex items-center gap-2 focus:outline-none';
+    if (notesTab) notesTab.className = 'debt-savings-tab text-sm px-6 py-2 rounded-lg bg-white text-amber-600 hover:bg-amber-50 font-medium flex items-center gap-2 focus:outline-none';
 
     // Hide all content
     debtContent.classList.add('hidden');
     savingsContent.classList.add('hidden');
     analysisContent.classList.add('hidden');
+    if (notesContent) notesContent.classList.add('hidden');
 
     // Show selected tab
     if (tab === 'debt') {
@@ -722,6 +754,12 @@ function switchDebtSavingsTab(tab) {
     } else if (tab === 'analysis') {
         analysisTab.className = 'debt-savings-tab active text-sm px-6 py-2 rounded-lg bg-blue-500 text-white font-medium flex items-center gap-2 focus:outline-none';
         analysisContent.classList.remove('hidden');
+    } else if (tab === 'notes') {
+        if (notesTab) notesTab.className = 'debt-savings-tab active text-sm px-6 py-2 rounded-lg bg-amber-500 text-white font-medium flex items-center gap-2 focus:outline-none';
+        if (notesContent) {
+            notesContent.classList.remove('hidden');
+            loadNotes();
+        }
     }
 }
 
@@ -1219,7 +1257,7 @@ function addSavingsGoal() {
     showToast('Savings goal added successfully!');
 }
 
-// Load savings goals
+// Load savings goals — enhanced with ✅/❎/🗑️ action buttons
 function loadSavingsGoals() {
     const goals = JSON.parse(localStorage.getItem('savingsGoals')) || [];
 
@@ -1235,7 +1273,7 @@ function loadSavingsGoals() {
         // Calculate available savings for this goal
         const availableSavings = Math.max(0, savings - usedSavings);
         const progress = Math.min((availableSavings / goal.amount) * 100, 100);
-        const isCompleted = progress >= 100 && !goal.completed;
+        const isReady = progress >= 100 && !goal.completed;
 
         // If goal is completed, add its amount to used savings
         if (goal.completed) {
@@ -1264,58 +1302,170 @@ function loadSavingsGoals() {
             timeInfo = '<div class="mt-2 p-2 bg-red-50 rounded text-sm text-red-600"><i class="fas fa-exclamation-triangle"></i> Target date passed!</div>';
         }
 
+        // Action buttons: ✅ tick, ❎ cross, 🗑️ delete
+        let actionButtons = '';
+        if (goal.completed) {
+            // Already completed — show completed badge + delete
+            actionButtons = `
+                <span class="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
+                    <i class="fas fa-check-circle"></i> Done
+                </span>
+                <button onclick="deleteGoal(${goal.id})" class="w-7 h-7 flex items-center justify-center rounded-full bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all" title="Delete">
+                    <i class="fas fa-trash text-xs"></i>
+                </button>
+            `;
+        } else {
+            // Active goal — show ✅ ❎ 🗑️
+            actionButtons = `
+                <button onclick="completeGoal(${goal.id})" class="w-8 h-8 flex items-center justify-center rounded-full bg-green-50 text-green-500 hover:bg-green-100 hover:text-green-700 transition-all hover:scale-110" title="Mark as achieved">
+                    ✅
+                </button>
+                <button onclick="rejectGoal(${goal.id})" class="w-8 h-8 flex items-center justify-center rounded-full bg-orange-50 text-orange-500 hover:bg-orange-100 hover:text-orange-700 transition-all hover:scale-110" title="Reject / cancel goal">
+                    ❎
+                </button>
+                <button onclick="deleteGoal(${goal.id})" class="w-7 h-7 flex items-center justify-center rounded-full bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all" title="Delete">
+                    <i class="fas fa-trash text-xs"></i>
+                </button>
+            `;
+        }
+
         return `
-            <div class="p-4 bg-white rounded-lg border ${goal.completed ? 'border-green-200 bg-green-50' : 'border-gray-200'}">
+            <div class="p-4 bg-white rounded-xl border ${goal.completed ? 'border-green-200 bg-green-50' : 'border-gray-200'} transition-all duration-300 hover:shadow-md">
                 <div class="flex justify-between items-center mb-3">
-                    <h4 class="font-semibold ${goal.completed ? 'text-green-800' : 'text-gray-800'} flex items-center gap-2">
-                        ${goal.completed ? '<i class="fas fa-check-circle text-green-500"></i>' : ''}
+                    <h4 class="font-semibold ${goal.completed ? 'text-green-800' : 'text-gray-800'} flex items-center gap-2 text-sm">
+                        ${goal.completed ? '<i class="fas fa-check-circle text-green-500"></i>' : '<i class="fas fa-bullseye text-purple-400"></i>'}
                         ${goal.description}
                     </h4>
-                    <div class="flex gap-2">
-                        <span class="text-sm text-gray-600">₹${goal.amount.toLocaleString()}</span>
-                        <button onclick="deleteGoal(${goal.id})" class="text-red-500 hover:text-red-700">
-                            <i class="fas fa-trash text-sm"></i>
-                        </button>
+                    <div class="flex gap-1 items-center">
+                        <span class="text-xs font-bold text-gray-500 mr-1">₹${goal.amount.toLocaleString()}</span>
+                        ${actionButtons}
                     </div>
                 </div>
                 <div class="mb-2">
                     <div class="flex justify-between text-sm mb-1">
                         <span>₹${availableSavings.toLocaleString()} of ₹${goal.amount.toLocaleString()}</span>
-                        <span>${progress.toFixed(1)}%</span>
+                        <span class="font-semibold">${progress.toFixed(1)}%</span>
                     </div>
                     <div class="w-full bg-gray-200 rounded-full h-3">
                         <div class="h-3 rounded-full transition-all duration-1000 ${goal.completed ? 'bg-green-500' : 'bg-gradient-to-r from-purple-500 to-pink-500'}" style="width: ${Math.min(progress, 100)}%"></div>
                     </div>
                 </div>
                 ${timeInfo}
-                ${isCompleted ? '<div class="text-green-600 font-semibold text-sm">🎉 Goal Achieved!</div>' : ''}
+                ${isReady ? '<div class="mt-2 text-green-600 font-semibold text-sm flex items-center gap-1"><i class="fas fa-star text-yellow-500"></i> Ready to complete! Tap ✅ to mark achieved.</div>' : ''}
             </div>
         `;
     }).join('');
 }
 
-// Update all goals progress
+// Update all goals progress (auto-detect newly completable goals)
 function updateAllGoalsProgress() {
     const goals = JSON.parse(localStorage.getItem('savingsGoals')) || [];
-    let newAchievements = [];
-
-    goals.forEach(goal => {
-        const progress = Math.min((savings / goal.amount) * 100, 100);
-        if (progress >= 100 && !goal.completed) {
-            goal.completed = true;
-            goal.completedDate = new Date().toISOString();
-            newAchievements.push(goal);
-        }
-    });
-
-    if (newAchievements.length > 0) {
-        localStorage.setItem('savingsGoals', JSON.stringify(goals));
-        addAchievements(newAchievements);
-        showCelebration(newAchievements);
-    }
-
+    // No auto-complete — user must manually tap ✅
     loadSavingsGoals();
     loadAchievements();
+}
+
+// ── Complete goal manually (✅ button) ──────────────────────────────────────
+function completeGoal(goalId) {
+    let goals = JSON.parse(localStorage.getItem('savingsGoals')) || [];
+    const goal = goals.find(g => g.id === goalId);
+    if (!goal || goal.completed) return;
+
+    goal.completed = true;
+    goal.completedDate = new Date().toISOString();
+    localStorage.setItem('savingsGoals', JSON.stringify(goals));
+
+    // Add achievement
+    addAchievements([goal]);
+
+    // Sync to Firestore
+    const uid = _uid();
+    if (uid && window.FS && goal._fsId) {
+        window.FS.saveGoal(uid, goal);
+    }
+
+    // Show compact celebration banner
+    showAchievementBanner(goal);
+    loadSavingsGoals();
+    loadAchievements();
+    updateSavingsUI();
+}
+
+// ── Reject goal (❎ button) — removes goal + deducts amount ─────────────────
+function rejectGoal(goalId) {
+    let goals = JSON.parse(localStorage.getItem('savingsGoals')) || [];
+    const goal = goals.find(g => g.id === goalId);
+    if (!goal) return;
+
+    if (!confirm(`Reject goal "${goal.description}"?\n\nThe goal will be removed.`)) return;
+
+    // Remove from goals
+    goals = goals.filter(g => g.id !== goalId);
+    localStorage.setItem('savingsGoals', JSON.stringify(goals));
+
+    // Remove related achievement if any
+    let achievements = JSON.parse(localStorage.getItem('achievements')) || [];
+    achievements = achievements.filter(a => !a.title.includes(goal.description));
+    localStorage.setItem('achievements', JSON.stringify(achievements));
+
+    // Sync to Firestore
+    const uid = _uid();
+    if (uid && window.FS && goal._fsId) {
+        window.FS.deleteGoal(uid, goal._fsId);
+    }
+
+    // Show feedback
+    showRejectionBanner(goal);
+    loadSavingsGoals();
+    loadAchievements();
+    updateSavingsUI();
+}
+
+// Show compact achievement celebration banner
+function showAchievementBanner(goal) {
+    const banner = document.createElement('div');
+    banner.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[100] animate-fade-in';
+    banner.innerHTML = `
+        <div class="flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl border border-green-200" 
+             style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); backdrop-filter: blur(10px);">
+            <span class="text-2xl">🏆</span>
+            <div>
+                <div class="font-bold text-green-800 text-sm">Goal Achieved!</div>
+                <div class="text-green-600 text-xs">${goal.description} — ₹${goal.amount.toLocaleString()}</div>
+            </div>
+            <span class="text-2xl">🎉</span>
+        </div>
+    `;
+    document.body.appendChild(banner);
+    setTimeout(() => {
+        banner.style.transition = 'opacity 0.5s, transform 0.5s';
+        banner.style.opacity = '0';
+        banner.style.transform = 'translate(-50%, -20px)';
+        setTimeout(() => banner.remove(), 500);
+    }, 3000);
+}
+
+// Show compact rejection banner
+function showRejectionBanner(goal) {
+    const banner = document.createElement('div');
+    banner.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[100] animate-fade-in';
+    banner.innerHTML = `
+        <div class="flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl border border-orange-200" 
+             style="background: linear-gradient(135deg, #fff7ed, #fed7aa); backdrop-filter: blur(10px);">
+            <span class="text-xl">❎</span>
+            <div>
+                <div class="font-bold text-orange-800 text-sm">Goal Removed</div>
+                <div class="text-orange-600 text-xs">${goal.description} — ₹${goal.amount.toLocaleString()}</div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(banner);
+    setTimeout(() => {
+        banner.style.transition = 'opacity 0.5s, transform 0.5s';
+        banner.style.opacity = '0';
+        banner.style.transform = 'translate(-50%, -20px)';
+        setTimeout(() => banner.remove(), 500);
+    }, 2500);
 }
 
 // Add achievements
@@ -1351,7 +1501,7 @@ function addAchievements(newGoals) {
     localStorage.setItem('achievements', JSON.stringify(achievements));
 }
 
-// Load achievements
+// Load achievements — compact, clean badge style
 function loadAchievements() {
     const achievements = JSON.parse(localStorage.getItem('achievements')) || [];
 
@@ -1361,13 +1511,12 @@ function loadAchievements() {
     }
 
     elements.achievements.classList.remove('hidden');
-    elements.achievementsList.innerHTML = achievements.slice(-3).reverse().map(achievement => `
-        <div class="flex items-center gap-3 p-2 bg-yellow-100 rounded-lg">
-            <i class="fas fa-${achievement.icon} text-yellow-600"></i>
-            <div>
-                <div class="font-semibold text-yellow-800">${achievement.title}</div>
-                <div class="text-sm text-yellow-700">${achievement.description}</div>
-            </div>
+    elements.achievementsList.innerHTML = achievements.slice(-5).reverse().map(achievement => `
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-full border border-yellow-200 text-xs" style="background: linear-gradient(135deg, #fefce8, #fef9c3);">
+            <i class="fas fa-${achievement.icon} text-yellow-500 text-xs"></i>
+            <span class="font-semibold text-yellow-800">${achievement.title}</span>
+            <span class="text-yellow-500 opacity-60">·</span>
+            <span class="text-yellow-600">${new Date(achievement.date).toLocaleDateString()}</span>
         </div>
     `).join('');
 }
@@ -1387,6 +1536,7 @@ function deleteGoal(goalId) {
         }
 
         loadSavingsGoals();
+        loadAchievements();
         showToast('Goal deleted successfully!');
     }
 }
@@ -1395,7 +1545,7 @@ function deleteGoal(goalId) {
 function showCelebration(achievements) {
     achievements.forEach((goal, index) => {
         setTimeout(() => {
-            showToast(`🎉 Goal Achieved: ${goal.description}! 🎉`);
+            showAchievementBanner(goal);
         }, index * 1000);
     });
 }
@@ -3601,3 +3751,322 @@ function switchAnalysisChart(chartType) {
 
 // NOTE: init() is called by firebase-auth-guard.js after cloud data loads.
 // Do NOT add a DOMContentLoaded listener here to avoid double initialization.
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ██  NOTES MANAGEMENT  ██████████████████████████████████████████████████
+// ═══════════════════════════════════════════════════════════════════════════
+
+function addNote() {
+    const input = document.getElementById('note-input');
+    const text = input.value.trim();
+    if (!text) {
+        showToast('Please write a note first!');
+        return;
+    }
+
+    const notes = JSON.parse(localStorage.getItem('userNotesItems')) || [];
+    const newNote = {
+        id: Date.now(),
+        text: text,
+        date: new Date().toISOString()
+    };
+    notes.push(newNote);
+    localStorage.setItem('userNotesItems', JSON.stringify(notes));
+    input.value = '';
+    loadNotes();
+    showToast('Note added! 📝');
+}
+
+function loadNotes() {
+    const notes = JSON.parse(localStorage.getItem('userNotesItems')) || [];
+    const container = document.getElementById('notes-list');
+    if (!container) return;
+
+    if (notes.length === 0) {
+        container.innerHTML = '<p class="text-gray-400 text-center py-8"><i class="fas fa-sticky-note text-3xl mb-2 opacity-30"></i><br>No notes yet. Add your first reminder!</p>';
+        return;
+    }
+
+    container.innerHTML = notes.slice().reverse().map(note => {
+        const dateStr = new Date(note.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        return `
+            <div class="p-4 bg-white rounded-xl border border-amber-100 shadow-sm hover:shadow-md transition-all duration-300 group" style="border-left: 4px solid #f59e0b;">
+                <div class="flex justify-between items-start gap-3">
+                    <div class="flex-1">
+                        <p class="text-gray-800 text-sm whitespace-pre-wrap">${note.text}</p>
+                        <p class="text-xs text-gray-400 mt-2 flex items-center gap-1">
+                            <i class="fas fa-clock"></i> ${dateStr}
+                        </p>
+                    </div>
+                    <button onclick="deleteNote(${note.id})" 
+                        class="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all opacity-50 group-hover:opacity-100"
+                        title="Delete note">
+                        <i class="fas fa-trash text-xs"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function deleteNote(noteId) {
+    let notes = JSON.parse(localStorage.getItem('userNotesItems')) || [];
+    notes = notes.filter(n => n.id !== noteId);
+    localStorage.setItem('userNotesItems', JSON.stringify(notes));
+    loadNotes();
+    showToast('Note deleted!');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ██  MOVE MONEY TO SAVINGS (from expense modal)  ████████████████████████
+// ═══════════════════════════════════════════════════════════════════════════
+
+function showMoveToSavingsModal() {
+    hideModal('expense');
+    const modal = document.getElementById('move-savings-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        const inner = modal.querySelector('.glass-card');
+        if (inner) {
+            inner.classList.remove('scale-95', 'opacity-0');
+            inner.classList.add('scale-100', 'opacity-100');
+        }
+    }, 10);
+    updateMoveToSavingsInfo();
+}
+
+function hideMoveToSavingsModal() {
+    const modal = document.getElementById('move-savings-modal');
+    if (!modal) return;
+    const inner = modal.querySelector('.glass-card');
+    if (inner) {
+        inner.classList.remove('scale-100', 'opacity-100');
+        inner.classList.add('scale-95', 'opacity-0');
+    }
+    setTimeout(() => modal.classList.add('hidden'), 300);
+    document.getElementById('move-savings-amount').value = '';
+}
+
+function selectMoveSource(source) {
+    const onlineBtn = document.getElementById('move-from-online-btn');
+    const cashBtn = document.getElementById('move-from-cash-btn');
+    document.getElementById('move-savings-source').value = source;
+
+    if (source === 'online') {
+        onlineBtn.className = 'flex-1 bg-blue-500 text-white py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-colors move-src-btn active';
+        cashBtn.className = 'flex-1 bg-gray-300 text-gray-700 py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-colors move-src-btn';
+    } else {
+        cashBtn.className = 'flex-1 bg-green-500 text-white py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-colors move-src-btn active';
+        onlineBtn.className = 'flex-1 bg-gray-300 text-gray-700 py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-colors move-src-btn';
+    }
+    updateMoveToSavingsInfo();
+}
+
+function updateMoveToSavingsInfo() {
+    const source = document.getElementById('move-savings-source').value;
+    const infoDiv = document.getElementById('move-savings-info');
+    if (!infoDiv) return;
+    const available = source === 'online' ? onlineIncome : cashIncome;
+    infoDiv.innerHTML = `Available <strong>${source === 'online' ? 'Online' : 'Cash'}</strong> balance: <strong>₹${available.toFixed(2)}</strong>`;
+}
+
+function handleMoveToSavings() {
+    const amount = parseFloat(document.getElementById('move-savings-amount').value);
+    const source = document.getElementById('move-savings-source').value;
+
+    if (!amount || amount <= 0) {
+        showToast('Please enter a valid amount!');
+        return;
+    }
+
+    const available = source === 'online' ? onlineIncome : cashIncome;
+    if (amount > available) {
+        showToast(`Insufficient ${source === 'online' ? 'Online' : 'Cash'} balance! Available: ₹${available.toFixed(2)}`);
+        return;
+    }
+
+    // Deduct from source
+    if (source === 'online') {
+        onlineIncome -= amount;
+        localStorage.setItem('onlineIncome', onlineIncome);
+    } else {
+        cashIncome -= amount;
+        localStorage.setItem('cashIncome', cashIncome);
+    }
+
+    // Add to savings
+    savings += amount;
+    localStorage.setItem('savings', savings);
+
+    // Record in savings history
+    const savingsHistory = JSON.parse(localStorage.getItem('savingsHistory')) || [];
+    const entry = {
+        id: Date.now(),
+        amount: amount,
+        type: 'deposit',
+        source: `Transferred from ${source === 'online' ? 'Online' : 'Cash'}`,
+        date: new Date().toISOString()
+    };
+    savingsHistory.push(entry);
+    localStorage.setItem('savingsHistory', JSON.stringify(savingsHistory));
+
+    // Sync to Firestore
+    const uid = _uid();
+    if (uid && window.FS) {
+        window.FS.saveProfile(uid, { onlineIncome, cashIncome, savings });
+        window.FS.saveSavingsEntry(uid, entry);
+    }
+
+    hideMoveToSavingsModal();
+    updateUI();
+    loadSavingsGoals();
+    updateAllGoalsProgress();
+
+    showTransferBanner('to-savings', amount, source);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ██  FROM SAVINGS TO MONEY (in income modal)  ████████████████████████████
+// ═══════════════════════════════════════════════════════════════════════════
+
+function showFromSavingsForm() {
+    const incomeForm = document.getElementById('income-form');
+    const fromSavingsForm = document.getElementById('from-savings-form');
+    if (!fromSavingsForm) return;
+
+    // Hide regular income form, show from-savings form
+    if (incomeForm) incomeForm.classList.add('hidden');
+    fromSavingsForm.classList.remove('hidden');
+
+    // Update balance display
+    const balEl = document.getElementById('from-savings-balance');
+    if (balEl) balEl.textContent = '₹' + savings.toFixed(2);
+}
+
+function hideFromSavingsForm() {
+    const fromSavingsForm = document.getElementById('from-savings-form');
+    if (fromSavingsForm) fromSavingsForm.classList.add('hidden');
+    document.getElementById('from-savings-amount').value = '';
+}
+
+function selectSavingsDest(dest) {
+    const onlineBtn = document.getElementById('savings-to-online-btn');
+    const cashBtn = document.getElementById('savings-to-cash-btn');
+    document.getElementById('savings-dest-type').value = dest;
+
+    if (dest === 'online') {
+        onlineBtn.className = 'flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-colors savings-dest-btn active';
+        cashBtn.className = 'flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-colors savings-dest-btn';
+    } else {
+        cashBtn.className = 'flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-colors savings-dest-btn active';
+        onlineBtn.className = 'flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-colors savings-dest-btn';
+    }
+}
+
+function handleFromSavingsTransfer(e) {
+    e.preventDefault();
+    const amount = parseFloat(document.getElementById('from-savings-amount').value);
+    const dest = document.getElementById('savings-dest-type').value;
+
+    if (!amount || amount <= 0) {
+        showToast('Please enter a valid amount!');
+        return;
+    }
+
+    if (amount > savings) {
+        showToast(`Insufficient savings! Available: ₹${savings.toFixed(2)}`);
+        return;
+    }
+
+    // Deduct from savings
+    savings -= amount;
+    localStorage.setItem('savings', savings);
+
+    // Add to destination
+    if (dest === 'online') {
+        onlineIncome += amount;
+        localStorage.setItem('onlineIncome', onlineIncome);
+    } else {
+        cashIncome += amount;
+        localStorage.setItem('cashIncome', cashIncome);
+    }
+
+    // Record in savings history as withdrawal
+    const savingsHistory = JSON.parse(localStorage.getItem('savingsHistory')) || [];
+    const entry = {
+        id: Date.now(),
+        amount: -amount,
+        type: 'withdrawal',
+        source: `Transferred to ${dest === 'online' ? 'Online' : 'Cash'}`,
+        date: new Date().toISOString()
+    };
+    savingsHistory.push(entry);
+    localStorage.setItem('savingsHistory', JSON.stringify(savingsHistory));
+
+    // Sync to Firestore
+    const uid = _uid();
+    if (uid && window.FS) {
+        window.FS.saveProfile(uid, { onlineIncome, cashIncome, savings });
+        window.FS.saveSavingsEntry(uid, entry);
+    }
+
+    hideFromSavingsForm();
+    hideModal('income');
+    updateUI();
+    loadSavingsGoals();
+    updateAllGoalsProgress();
+
+    showTransferBanner('from-savings', amount, dest);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ██  TRANSFER BANNER  ████████████████████████████████████████████████████
+// ═══════════════════════════════════════════════════════════════════════════
+
+function showTransferBanner(direction, amount, target) {
+    const banner = document.createElement('div');
+    banner.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[100] animate-fade-in';
+
+    if (direction === 'to-savings') {
+        banner.innerHTML = `
+            <div class="flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl border border-purple-200" 
+                 style="background: linear-gradient(135deg, #faf5ff, #e9d5ff); backdrop-filter: blur(10px);">
+                <span class="text-xl">💰</span>
+                <div>
+                    <div class="font-bold text-purple-800 text-sm">Moved to Savings!</div>
+                    <div class="text-purple-600 text-xs">₹${amount.toFixed(2)} from ${target === 'online' ? 'Online' : 'Cash'} → Savings</div>
+                </div>
+                <span class="text-xl">🐷</span>
+            </div>
+        `;
+    } else {
+        banner.innerHTML = `
+            <div class="flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl border border-blue-200" 
+                 style="background: linear-gradient(135deg, #eff6ff, #dbeafe); backdrop-filter: blur(10px);">
+                <span class="text-xl">🐷</span>
+                <div>
+                    <div class="font-bold text-blue-800 text-sm">Withdrawn from Savings!</div>
+                    <div class="text-blue-600 text-xs">₹${amount.toFixed(2)} from Savings → ${target === 'online' ? 'Online' : 'Cash'}</div>
+                </div>
+                <span class="text-xl">💳</span>
+            </div>
+        `;
+    }
+
+    document.body.appendChild(banner);
+    setTimeout(() => {
+        banner.style.transition = 'opacity 0.5s, transform 0.5s';
+        banner.style.opacity = '0';
+        banner.style.transform = 'translate(-50%, -20px)';
+        setTimeout(() => banner.remove(), 500);
+    }, 3000);
+}
+
+// Helper: update savings UI elements
+function updateSavingsUI() {
+    const savingsBalanceEl = document.getElementById('savings-balance');
+    if (savingsBalanceEl) {
+        savingsBalanceEl.textContent = '₹' + savings.toFixed(2);
+    }
+}
