@@ -415,9 +415,21 @@ function setupEventListeners() {
     const notesTab = document.getElementById('notes-tab');
     if (notesTab) notesTab.addEventListener('click', () => switchDebtSavingsTab('notes'));
 
-    // Add Note button
-    const addNoteBtn = document.getElementById('add-note-btn');
-    if (addNoteBtn) addNoteBtn.addEventListener('click', addNote);
+    // Note form buttons
+    const newNoteBtn = document.getElementById('new-note-btn');
+    if (newNoteBtn) newNoteBtn.addEventListener('click', toggleNoteForm);
+
+    const cancelNoteBtn = document.getElementById('cancel-note-btn');
+    if (cancelNoteBtn) cancelNoteBtn.addEventListener('click', toggleNoteForm);
+
+    const saveNoteBtn = document.getElementById('save-note-btn');
+    if (saveNoteBtn) saveNoteBtn.addEventListener('click', saveNote);
+
+    const typeTextBtn = document.getElementById('note-type-text');
+    if (typeTextBtn) typeTextBtn.addEventListener('click', () => setNoteType('text'));
+
+    const typeAmountBtn = document.getElementById('note-type-amount');
+    if (typeAmountBtn) typeAmountBtn.addEventListener('click', () => setNoteType('amount'));
 
     // From Savings button in income modal
     const fromSavingsBtn = document.getElementById('from-savings-btn');
@@ -754,6 +766,7 @@ function switchDebtSavingsTab(tab) {
     } else if (tab === 'analysis') {
         analysisTab.className = 'debt-savings-tab active text-sm px-6 py-2 rounded-lg bg-blue-500 text-white font-medium flex items-center gap-2 focus:outline-none';
         analysisContent.classList.remove('hidden');
+        setTimeout(() => updateSavingsChart(), 50); // Redraw chart once it's visible
     } else if (tab === 'notes') {
         if (notesTab) notesTab.className = 'debt-savings-tab active text-sm px-6 py-2 rounded-lg bg-amber-500 text-white font-medium flex items-center gap-2 focus:outline-none';
         if (notesContent) {
@@ -3751,30 +3764,181 @@ function switchAnalysisChart(chartType) {
 
 // NOTE: init() is called by firebase-auth-guard.js after cloud data loads.
 // Do NOT add a DOMContentLoaded listener here to avoid double initialization.
+function init() {
+    try {
+        // Set Chart.js defaults for dark theme
+        if (typeof Chart !== 'undefined') {
+            Chart.defaults.color = '#ffffff';
+            Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.1)';
+        }
 
+        const today = new Date();
+
+        if (elements.todayDate) {
+            elements.todayDate.textContent = today.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        if (elements.currentMonth) {
+            elements.currentMonth.textContent = today.toLocaleDateString('en-US', {
+                month: 'long',
+                year: 'numeric'
+            });
+        }
+
+        const expenseDateInput = document.getElementById('expense-date');
+        if (expenseDateInput) {
+            expenseDateInput.value = today.toISOString().split('T')[0];
+        }
+
+        loadCustomCategories();
+        setupEventListeners();
+
+        // Add listener for PDF download button
+        const downloadPdfBtn = document.getElementById('download-pdf-btn');
+        if (downloadPdfBtn) {
+            downloadPdfBtn.addEventListener('click', downloadHistoryAsPDF);
+        }
+        updateUI();
+
+        if (expenses.length === 0 && income === 0) {
+            setTimeout(() => {
+                showToast('Welcome! Start by adding some income and expenses.');
+            }, 1000);
+        }
+    } catch (error) {
+        console.error('Error initializing app:', error);
+    }
+}
+window.init = init; // explicitly expose to window just in case
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════════════
 // ██  NOTES MANAGEMENT  ██████████████████████████████████████████████████
 // ═══════════════════════════════════════════════════════════════════════════
 
-function addNote() {
-    const input = document.getElementById('note-input');
-    const text = input.value.trim();
+// Expose dynamically called functions to global scope
+window.editNote = editNote;
+window.deleteNote = deleteNote;
+window.toggleNoteForm = toggleNoteForm;
+window.setNoteType = setNoteType;
+window.saveNote = saveNote;
+
+function toggleNoteForm() {
+    const form = document.getElementById('note-form-container');
+    if (form.classList.contains('hidden')) {
+        form.classList.remove('hidden');
+        document.getElementById('note-text-input').focus();
+    } else {
+        form.classList.add('hidden');
+        // Reset form
+        document.getElementById('current-note-id').value = '';
+        document.getElementById('note-text-input').value = '';
+        document.getElementById('note-amount-input').value = '';
+        setNoteType('text');
+    }
+}
+
+function setNoteType(type) {
+    document.getElementById('current-note-type').value = type;
+    const textBtn = document.getElementById('note-type-text');
+    const amountBtn = document.getElementById('note-type-amount');
+    const amountGroup = document.getElementById('note-amount-group');
+
+    if (type === 'text') {
+        textBtn.className = 'flex-1 py-2 rounded-lg bg-amber-500 text-white font-medium transition-colors';
+        amountBtn.className = 'flex-1 py-2 rounded-lg bg-white text-amber-600 border border-amber-300 font-medium transition-colors hover:bg-amber-100';
+        amountGroup.classList.add('hidden');
+    } else {
+        amountBtn.className = 'flex-1 py-2 rounded-lg bg-amber-500 text-white font-medium transition-colors';
+        textBtn.className = 'flex-1 py-2 rounded-lg bg-white text-amber-600 border border-amber-300 font-medium transition-colors hover:bg-amber-100';
+        amountGroup.classList.remove('hidden');
+    }
+}
+
+function saveNote() {
+    const textInput = document.getElementById('note-text-input');
+    const amountInput = document.getElementById('note-amount-input');
+    const typeInput = document.getElementById('current-note-type');
+    const idInput = document.getElementById('current-note-id');
+
+    const text = textInput.value.trim();
+    const type = typeInput.value;
+    const amount = parseFloat(amountInput.value) || 0;
+    const id = idInput.value;
+
     if (!text) {
-        showToast('Please write a note first!');
+        showToast('Please enter note details!');
+        return;
+    }
+    
+    if (type === 'amount' && amount <= 0) {
+        showToast('Please enter a valid amount!');
         return;
     }
 
-    const notes = JSON.parse(localStorage.getItem('userNotesItems')) || [];
-    const newNote = {
-        id: Date.now(),
-        text: text,
-        date: new Date().toISOString()
-    };
-    notes.push(newNote);
+    let notes = JSON.parse(localStorage.getItem('userNotesItems')) || [];
+    
+    if (id) {
+        // Edit existing
+        const index = notes.findIndex(n => n.id == id);
+        if (index > -1) {
+            notes[index].text = text;
+            notes[index].type = type;
+            notes[index].amount = amount;
+            notes[index].date = new Date().toISOString();
+        }
+    } else {
+        // Add new
+        const newNote = {
+            id: Date.now(),
+            text: text,
+            type: type,
+            amount: amount,
+            date: new Date().toISOString()
+        };
+        notes.push(newNote);
+    }
+
     localStorage.setItem('userNotesItems', JSON.stringify(notes));
-    input.value = '';
+    toggleNoteForm();
     loadNotes();
-    showToast('Note added! 📝');
+    showToast(id ? 'Note updated! 📝' : 'Note added! 📝');
+}
+
+function editNote(id) {
+    const notes = JSON.parse(localStorage.getItem('userNotesItems')) || [];
+    const note = notes.find(n => n.id == id);
+    if (!note) return;
+
+    const form = document.getElementById('note-form-container');
+    if (form.classList.contains('hidden')) {
+        form.classList.remove('hidden');
+    }
+
+    document.getElementById('current-note-id').value = note.id;
+    document.getElementById('note-text-input').value = note.text;
+    document.getElementById('current-note-type').value = note.type || 'text';
+    
+    setNoteType(note.type || 'text');
+    if (note.type === 'amount') {
+        document.getElementById('note-amount-input').value = note.amount || 0;
+    }
+
+    document.getElementById('note-text-input').focus();
+}
+
+function deleteNote(noteId) {
+    if (!confirm('Are you sure you want to delete this note?')) return;
+    let notes = JSON.parse(localStorage.getItem('userNotesItems')) || [];
+    notes = notes.filter(n => n.id != noteId); // Use loose equality for string/number mixup
+    localStorage.setItem('userNotesItems', JSON.stringify(notes));
+    loadNotes();
+    showToast('Note deleted!');
 }
 
 function loadNotes() {
@@ -3789,32 +3953,34 @@ function loadNotes() {
 
     container.innerHTML = notes.slice().reverse().map(note => {
         const dateStr = new Date(note.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const isAmountType = note.type === 'amount';
+        
         return `
-            <div class="p-4 bg-white rounded-xl border border-amber-100 shadow-sm hover:shadow-md transition-all duration-300 group" style="border-left: 4px solid #f59e0b;">
+            <div class="p-4 bg-white rounded-xl border ${isAmountType ? 'border-red-100' : 'border-amber-100'} shadow-sm hover:shadow-md transition-all duration-300 group relative" style="border-left: 4px solid ${isAmountType ? '#ef4444' : '#f59e0b'};">
                 <div class="flex justify-between items-start gap-3">
                     <div class="flex-1">
+                        ${isAmountType ? `<div class="text-lg font-bold text-red-500 mb-1">₹${parseFloat(note.amount || 0).toFixed(2)}</div>` : ''}
                         <p class="text-gray-800 text-sm whitespace-pre-wrap">${note.text}</p>
                         <p class="text-xs text-gray-400 mt-2 flex items-center gap-1">
-                            <i class="fas fa-clock"></i> ${dateStr}
+                            <i class="fas fa-clock"></i> ${dateStr} ${isAmountType ? '<span class="ml-2 px-2 py-0.5 bg-red-50 text-red-500 rounded text-[10px] font-medium">AMOUNT NOTE</span>' : ''}
                         </p>
                     </div>
-                    <button onclick="deleteNote(${note.id})" 
-                        class="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all opacity-50 group-hover:opacity-100"
-                        title="Delete note">
-                        <i class="fas fa-trash text-xs"></i>
-                    </button>
+                    <div class="flex flex-col gap-2 opacity-100 sm:opacity-50 sm:group-hover:opacity-100 transition-opacity">
+                        <button onclick="editNote(${note.id})" 
+                            class="w-8 h-8 flex items-center justify-center rounded-full bg-blue-50 text-blue-400 hover:bg-blue-100 hover:text-blue-600 transition-all"
+                            title="Edit note">
+                            <i class="fas fa-edit text-xs"></i>
+                        </button>
+                        <button onclick="deleteNote(${note.id})" 
+                            class="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all"
+                            title="Delete note">
+                            <i class="fas fa-trash text-xs"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
     }).join('');
-}
-
-function deleteNote(noteId) {
-    let notes = JSON.parse(localStorage.getItem('userNotesItems')) || [];
-    notes = notes.filter(n => n.id !== noteId);
-    localStorage.setItem('userNotesItems', JSON.stringify(notes));
-    loadNotes();
-    showToast('Note deleted!');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4061,12 +4227,4 @@ function showTransferBanner(direction, amount, target) {
         banner.style.transform = 'translate(-50%, -20px)';
         setTimeout(() => banner.remove(), 500);
     }, 3000);
-}
-
-// Helper: update savings UI elements
-function updateSavingsUI() {
-    const savingsBalanceEl = document.getElementById('savings-balance');
-    if (savingsBalanceEl) {
-        savingsBalanceEl.textContent = '₹' + savings.toFixed(2);
-    }
 }
