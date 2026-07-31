@@ -184,6 +184,7 @@ function init() {
         const savingsHistory = cd.savingsHistory || [];
         const goals          = cd.goals          || [];
         const achievements   = cd.achievements   || [];
+        const notes          = cd.notes          || [];
 
         localStorage.setItem('expenses',       JSON.stringify(expenses));
         localStorage.setItem('income',         income.toString());
@@ -195,6 +196,7 @@ function init() {
         localStorage.setItem('savingsHistory', JSON.stringify(savingsHistory));
         localStorage.setItem('savingsGoals',   JSON.stringify(goals));
         localStorage.setItem('achievements',   JSON.stringify(achievements));
+        localStorage.setItem('userNotesItems', JSON.stringify(notes));
 
         window._cloudData = null; // free memory
         console.log('[Init] Loaded from Firestore:', { expenses: expenses.length, income, savings, debts: debts.length });
@@ -311,6 +313,11 @@ function setupRealtimeListeners(uid) {
         onAchievements: (data) => {
             localStorage.setItem('achievements', JSON.stringify(data));
             debouncedRefresh();
+        },
+        onNotes: (data) => {
+            localStorage.setItem('userNotesItems', JSON.stringify(data));
+            if (typeof loadNotes === 'function') loadNotes();
+            debouncedRefresh();
         }
     });
 }
@@ -356,6 +363,16 @@ async function _migrateLocalToCloud() {
         for (const g of goals) {
             if (!g._fsId) await window.FS.saveGoal(uid, g);
         }
+
+        // Migrate notes
+        const notesMig = JSON.parse(localStorage.getItem('userNotesItems')) || [];
+        for (const n of notesMig) {
+            if (!n._fsId) {
+                const fsId = await window.FS.saveNote(uid, n);
+                n._fsId = fsId;
+            }
+        }
+        localStorage.setItem('userNotesItems', JSON.stringify(notesMig));
 
         // Save totals
         await window.FS.saveUserTotals(uid, { income, onlineIncome, cashIncome, savings });
@@ -3860,7 +3877,7 @@ function setNoteType(type) {
     }
 }
 
-function saveNote() {
+async function saveNote() {
     const textInput = document.getElementById('note-text-input');
     const amountInput = document.getElementById('note-amount-input');
     const typeInput = document.getElementById('current-note-type');
@@ -3882,6 +3899,7 @@ function saveNote() {
     }
 
     let notes = JSON.parse(localStorage.getItem('userNotesItems')) || [];
+    let savedNote;
     
     if (id) {
         // Edit existing
@@ -3891,23 +3909,34 @@ function saveNote() {
             notes[index].type = type;
             notes[index].amount = amount;
             notes[index].date = new Date().toISOString();
+            savedNote = notes[index];
         }
     } else {
         // Add new
-        const newNote = {
+        savedNote = {
             id: Date.now(),
             text: text,
             type: type,
             amount: amount,
             date: new Date().toISOString()
         };
-        notes.push(newNote);
+        notes.push(savedNote);
     }
 
     localStorage.setItem('userNotesItems', JSON.stringify(notes));
     toggleNoteForm();
     loadNotes();
     showToast(id ? 'Note updated! 📝' : 'Note added! 📝');
+    
+    // Cloud sync
+    const uid = typeof _uid === 'function' ? _uid() : null;
+    if (uid && window.FS && savedNote) {
+        const fsId = await window.FS.saveNote(uid, savedNote);
+        if (!savedNote._fsId) {
+            savedNote._fsId = fsId;
+            localStorage.setItem('userNotesItems', JSON.stringify(notes));
+        }
+    }
 }
 
 function editNote(id) {
@@ -3932,13 +3961,20 @@ function editNote(id) {
     document.getElementById('note-text-input').focus();
 }
 
-function deleteNote(noteId) {
+async function deleteNote(noteId) {
     if (!confirm('Are you sure you want to delete this note?')) return;
     let notes = JSON.parse(localStorage.getItem('userNotesItems')) || [];
+    const noteToDelete = notes.find(n => n.id == noteId);
     notes = notes.filter(n => n.id != noteId); // Use loose equality for string/number mixup
     localStorage.setItem('userNotesItems', JSON.stringify(notes));
     loadNotes();
     showToast('Note deleted!');
+    
+    // Cloud sync
+    const uid = typeof _uid === 'function' ? _uid() : null;
+    if (uid && window.FS && noteToDelete && noteToDelete._fsId) {
+        await window.FS.deleteNote(uid, noteToDelete._fsId);
+    }
 }
 
 function loadNotes() {
@@ -3967,14 +4003,14 @@ function loadNotes() {
                     </div>
                     <div class="flex flex-col gap-2 opacity-100 sm:opacity-50 sm:group-hover:opacity-100 transition-opacity">
                         <button onclick="editNote(${note.id})" 
-                            class="w-8 h-8 flex items-center justify-center rounded-full bg-blue-50 text-blue-400 hover:bg-blue-100 hover:text-blue-600 transition-all"
+                            class="w-12 h-12 flex items-center justify-center rounded-full bg-blue-50 text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-all shadow-sm"
                             title="Edit note">
-                            <i class="fas fa-edit text-xs"></i>
+                            <i class="fas fa-edit text-lg"></i>
                         </button>
                         <button onclick="deleteNote(${note.id})" 
-                            class="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all"
+                            class="w-12 h-12 flex items-center justify-center rounded-full bg-purple-50 text-purple-500 hover:bg-purple-100 hover:text-purple-700 transition-all shadow-sm"
                             title="Delete note">
-                            <i class="fas fa-trash text-xs"></i>
+                            <i class="fas fa-trash text-lg"></i>
                         </button>
                     </div>
                 </div>

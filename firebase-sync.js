@@ -35,13 +35,14 @@ async function loadAll(uid) {
         const profile  = userSnap.exists() ? userSnap.data() : {};
 
         // 2. Load all sub-collections in parallel
-        const [expSnap, incSnap, debSnap, savSnap, goalSnap, achSnap] = await Promise.all([
+        const [expSnap, incSnap, debSnap, savSnap, goalSnap, achSnap, noteSnap] = await Promise.all([
             getDocs(query(subCol(uid, 'expenses'),       orderBy('timestamp', 'desc'))),
             getDocs(query(subCol(uid, 'incomeHistory'),  orderBy('timestamp', 'desc'))),
             getDocs(query(subCol(uid, 'debts'),          orderBy('createdDate', 'desc'))),
             getDocs(query(subCol(uid, 'savingsHistory'), orderBy('timestamp', 'desc'))),
             getDocs(subCol(uid, 'goals')),
             getDocs(subCol(uid, 'achievements')),
+            getDocs(query(subCol(uid, 'notes'), orderBy('id', 'desc'))),
         ]);
 
         const expenses       = expSnap.docs.map(d  => ({ _fsId: d.id, ...d.data() }));
@@ -50,6 +51,7 @@ async function loadAll(uid) {
         const savingsHistory = savSnap.docs.map(d  => ({ _fsId: d.id, ...d.data() }));
         const goals          = goalSnap.docs.map(d => ({ _fsId: d.id, ...d.data() }));
         const achievements   = achSnap.docs.map(d  => ({ _fsId: d.id, ...d.data() }));
+        const notes          = noteSnap.docs.map(d => ({ _fsId: d.id, ...d.data() }));
 
         return {
             profile,
@@ -59,6 +61,7 @@ async function loadAll(uid) {
             savingsHistory,
             goals,
             achievements,
+            notes,
             income:       profile.income       || 0,
             onlineIncome: profile.onlineIncome  || 0,
             cashIncome:   profile.cashIncome    || 0,
@@ -120,6 +123,13 @@ function startRealtimeSync(uid, callbacks) {
     unsubscribes.push(onSnapshot(subCol(uid, 'achievements'), (snap) => {
         if (callbacks.onAchievements) {
             callbacks.onAchievements(snap.docs.map(d => ({ _fsId: d.id, ...d.data() })));
+        }
+    }));
+
+    // 8. Notes Listener
+    unsubscribes.push(onSnapshot(query(subCol(uid, 'notes'), orderBy('id', 'desc')), (snap) => {
+        if (callbacks.onNotes) {
+            callbacks.onNotes(snap.docs.map(d => ({ _fsId: d.id, ...d.data() })));
         }
     }));
 
@@ -311,6 +321,32 @@ async function saveAchievement(uid, achievement) {
     }
 }
 
+// ── Notes operations ───────────────────────────────────────────────────────
+async function saveNote(uid, note) {
+    try {
+        const data = { ...note };
+        delete data._fsId;
+        if (note._fsId) {
+            await setDoc(doc(subCol(uid, 'notes'), note._fsId), data);
+            return note._fsId;
+        } else {
+            const ref = await addDoc(subCol(uid, 'notes'), data);
+            return ref.id;
+        }
+    } catch (err) {
+        console.warn('[FS] saveNote error:', err);
+    }
+}
+
+async function deleteNote(uid, fsId) {
+    if (!fsId) return;
+    try {
+        await deleteDoc(doc(subCol(uid, 'notes'), fsId));
+    } catch (err) {
+        console.warn('[FS] deleteNote error:', err);
+    }
+}
+
 // ── Expose everything globally via window.FS ──────────────────────────────
 window.FS = {
     loadAll,
@@ -328,6 +364,8 @@ window.FS = {
     saveGoal,
     deleteGoal,
     saveAchievement,
+    saveNote,
+    deleteNote,
     startRealtimeSync,
 };
 
