@@ -211,6 +211,7 @@ function init() {
         Chart.defaults.color = '#ffffff';
         Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.1)';
     }
+    disableMobileConfirmDialogs();
 
     // Initialize expense date input
     const expenseDateInput = document.getElementById('expense-date');
@@ -248,12 +249,7 @@ function init() {
         downloadPdfBtn.addEventListener('click', downloadHistoryAsPDF);
     }
 
-    // Show welcome message
-    if (expenses.length === 0 && income === 0) {
-        setTimeout(() => {
-            showToast('Welcome! Start by adding some income and expenses.');
-        }, 1000);
-    }
+    // Welcome toast removed per user request
 }
 
 // ── Real-Time Sync Handlers ──────────────────────────────────────────────────
@@ -660,9 +656,11 @@ function showModal(type) {
     // Reset income modal when opening
     if (type === 'income') {
         const incomeForm = document.getElementById('income-form');
+        const fromSavingsForm = document.getElementById('from-savings-form');
         const onlineBtn = document.getElementById('online-income-btn');
         const cashBtn = document.getElementById('cash-income-btn');
-        if (incomeForm) incomeForm.classList.add('hidden');
+        if (incomeForm) incomeForm.classList.remove('hidden');
+        if (fromSavingsForm) fromSavingsForm.classList.add('hidden');
         if (onlineBtn) onlineBtn.classList.remove('bg-blue-600');
         if (cashBtn) cashBtn.classList.remove('bg-green-600');
     }
@@ -712,9 +710,23 @@ function hideModal(type) {
 }
 
 // Toast notification
+function disableMobileConfirmDialogs() {
+    try {
+        window.confirm = function (message) {
+            console.log('[Auto-confirm] ' + message);
+            return true;
+        };
+        window.alert = function (message) {
+            console.log('[Auto-alert] ' + message);
+        };
+    } catch (error) {
+        console.warn('Unable to disable confirm dialogs:', error);
+    }
+}
+
 function showToast(message, type = 'success') {
-    // Toast notification disabled by user request
-    console.log('Toast suppressed:', message);
+    // Toast notifications are disabled to eliminate popup banners.
+    console.log('[Toast]', type, message);
 }
 
 // Analytics tab switching
@@ -893,11 +905,10 @@ function handleExpenseSubmit(e) {
                 ? `No ${balanceType} money available! You need ₹${amount.toFixed(2)} but have ₹0.00. Please add ${balanceType} income first.`
                 : `Insufficient ${balanceType} funds! You need ₹${amount.toFixed(2)} but only have ₹${availableBalance.toFixed(2)}. You're short by ₹${deficit.toFixed(2)}.`;
 
-            if (confirm(`${message}\n\nWould you like to add income first?`)) {
-                hideModal('expense');
-                showModal('income');
-            }
-            return;
+            showToast(`${message} Adding income now...`, 'warning');
+        hideModal('expense');
+        showModal('income');
+        return;
         }
 
         // Handle custom category
@@ -1788,17 +1799,28 @@ function updateSavingsChart() {
         savingsChartInstance.destroy();
     }
 
-    const labels = [];
-    const data = [];
-    let balance = 0;
-
+    // Sort by actual timestamp so same-day entries are in correct order
     savingsHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
 
+    // Group by YYYY-MM-DD: one chart point per day showing end-of-day running balance
+    let runningBal = 0;
+    const dailyBalance = {};
+    const dateOrder = [];
     savingsHistory.forEach(item => {
-        labels.push(new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-        balance += item.type === 'savings-add' ? item.amount : -item.amount;
-        data.push(Math.max(0, balance));
+        const dateKey = (item.date || '').substring(0, 10) || getCurrentDateString();
+        const isDeposit = item.type === 'savings-add' || item.type === 'deposit';
+        runningBal += isDeposit ? Math.abs(item.amount) : -Math.abs(item.amount);
+        runningBal = Math.max(0, runningBal);
+        if (!dailyBalance[dateKey]) dateOrder.push(dateKey);
+        dailyBalance[dateKey] = runningBal;
     });
+
+    const labels = dateOrder.map(d => {
+        const [yr, mo, da] = d.split('-');
+        return new Date(parseInt(yr), parseInt(mo) - 1, parseInt(da))
+            .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    });
+    const data = dateOrder.map(d => dailyBalance[d]);
 
     if (!elements.savingsChart) return;
 
@@ -2147,17 +2169,24 @@ function updatePriceHistoryChart() {
 
         if (!groupedData[key]) groupedData[key] = { income: 0, expense: 0, savings: 0 };
 
-        if (item.type === 'income') groupedData[key].income += item.amount;
-        else if (item.type === 'expense') groupedData[key].expense += item.amount;
-        else if (item.type === 'savings-add') groupedData[key].savings += item.amount;
-        else if (item.type === 'savings-withdraw') groupedData[key].savings -= item.amount;
+        if (item.type === 'income') groupedData[key].income += Math.abs(item.amount);
+        else if (item.type === 'expense') groupedData[key].expense += Math.abs(item.amount);
+        // Support canonical types and legacy 'deposit'/'withdrawal' aliases
+        else if (item.type === 'savings-add' || item.type === 'deposit') groupedData[key].savings += Math.abs(item.amount);
+        else if (item.type === 'savings-withdraw' || item.type === 'withdrawal') groupedData[key].savings -= Math.abs(item.amount);
     });
 
     const sortedKeys = Object.keys(groupedData).sort();
     const labels = sortedKeys.map(k => formatGroupLabel(k, currentHistoryFilter));
     const incomeData = sortedKeys.map(k => groupedData[k].income);
     const expenseData = sortedKeys.map(k => groupedData[k].expense);
-    const savingsData = sortedKeys.map(k => groupedData[k].savings);
+    // Use cumulative running balance for savings so line never goes negative
+    const savingsData = [];
+    let savRunBal = 0;
+    sortedKeys.forEach(k => {
+        savRunBal = Math.max(0, savRunBal + groupedData[k].savings);
+        savingsData.push(savRunBal);
+    });
 
     if (priceHistoryChartInstance) priceHistoryChartInstance.destroy();
     if (!elements.priceHistoryChart) return;
@@ -2290,12 +2319,19 @@ function getAllTransactions() {
     // Add savings transactions
     const savingsHistory = JSON.parse(localStorage.getItem('savingsHistory')) || [];
     savingsHistory.forEach((entry, i) => {
-        if (entry.date && entry.amount) {
+        if (entry.date && entry.amount != null) {
+            // Normalize legacy 'deposit'/'withdrawal' aliases to canonical types
+            let normType = entry.type || 'savings-add';
+            if (normType === 'deposit') normType = 'savings-add';
+            if (normType === 'withdrawal') normType = 'savings-withdraw';
+            const normAmount = Math.abs(entry.amount);
+            // Normalize date to YYYY-MM-DD so it groups correctly with expenses in charts
+            const normDate = (entry.date || '').substring(0, 10) || getCurrentDateString();
             transactions.push({
-                date:        entry.date,
-                amount:      entry.amount,
-                type:        entry.type || 'savings-add',
-                description: entry.description || 'Savings transaction',
+                date:        normDate,
+                amount:      normAmount,
+                type:        normType,
+                description: entry.description || entry.source || 'Savings transaction',
                 _txKey:      'savings|' + i + '|' + entry.date + '|' + entry.amount + '|' + (entry.type||'savings-add')
             });
         }
@@ -2376,8 +2412,8 @@ function getTypeClass(type) {
     switch (type) {
         case 'income': return 'bg-green-100 text-green-800';
         case 'expense': return 'bg-red-100 text-red-800';
-        case 'savings-add': return 'bg-purple-100 text-purple-800';
-        case 'savings-withdraw': return 'bg-yellow-100 text-yellow-800';
+        case 'savings-add': case 'deposit': return 'bg-purple-100 text-purple-800';
+        case 'savings-withdraw': case 'withdrawal': return 'bg-yellow-100 text-yellow-800';
         default: return 'bg-gray-100 text-gray-800';
     }
 }
@@ -2386,8 +2422,8 @@ function getTypeText(type) {
     switch (type) {
         case 'income': return 'Income';
         case 'expense': return 'Expense';
-        case 'savings-add': return 'Savings Add';
-        case 'savings-withdraw': return 'Savings Withdraw';
+        case 'savings-add': case 'deposit': return 'Savings +';
+        case 'savings-withdraw': case 'withdrawal': return 'Savings -';
         default: return type;
     }
 }
@@ -2396,19 +2432,20 @@ function getAmountClass(type) {
     switch (type) {
         case 'income': return 'text-green-600';
         case 'expense': return 'text-red-600';
-        case 'savings-add': return 'text-purple-600';
-        case 'savings-withdraw': return 'text-yellow-600';
+        case 'savings-add': case 'deposit': return 'text-purple-600';
+        case 'savings-withdraw': case 'withdrawal': return 'text-yellow-600';
         default: return 'text-gray-600';
     }
 }
 
 function getAmountText(type, amount) {
+    const abs = Math.abs(amount);
     switch (type) {
-        case 'income': return '+₹' + amount.toFixed(2);
-        case 'expense': return '-₹' + amount.toFixed(2);
-        case 'savings-add': return '+₹' + amount.toFixed(2);
-        case 'savings-withdraw': return '-₹' + amount.toFixed(2);
-        default: return '₹' + amount.toFixed(2);
+        case 'income': return '+₹' + abs.toFixed(2);
+        case 'expense': return '-₹' + abs.toFixed(2);
+        case 'savings-add': case 'deposit': return '+₹' + abs.toFixed(2);
+        case 'savings-withdraw': case 'withdrawal': return '-₹' + abs.toFixed(2);
+        default: return '₹' + abs.toFixed(2);
     }
 }
 
@@ -2527,11 +2564,12 @@ function downloadHistoryAsPDF() {
         let typeStr = '';
         if (t.type === 'expense') typeStr = 'Expense';
         else if (t.type === 'income') typeStr = 'Income';
-        else if (t.type === 'savings-add') typeStr = 'Savings+';
-        else if (t.type === 'savings-withdraw') typeStr = 'Savings-';
-        else typeStr = t.type;
+        else if (t.type === 'savings-add' || t.type === 'deposit') typeStr = 'Savings +';
+        else if (t.type === 'savings-withdraw' || t.type === 'withdrawal') typeStr = 'Savings -';
+        else typeStr = t.type || 'Unknown';
 
-        const amountSign = (t.type === 'income' || t.type === 'savings-add') ? '+' : '-';
+        const isCredit = (t.type === 'income' || t.type === 'savings-add' || t.type === 'deposit');
+        const amountSign = isCredit ? '+' : '-';
         const formattedAmount = `${amountSign} ${Math.abs(t.amount).toFixed(2)}`;
 
         tableRows.push([
@@ -2627,7 +2665,9 @@ function deleteTransactionByKey(encodedKey) {
             : sh.findIndex(e => e.date === date && parseFloat(e.amount) === amount && e.type === stype);
         if (idx > -1) {
             const deleted = sh.splice(idx, 1)[0];
-            savings += (deleted.type === 'savings-add' ? -parseFloat(deleted.amount) : parseFloat(deleted.amount));
+            // Support canonical and legacy type aliases
+            const isAdd = deleted.type === 'savings-add' || deleted.type === 'deposit';
+            savings += isAdd ? -Math.abs(parseFloat(deleted.amount)) : Math.abs(parseFloat(deleted.amount));
             if (savings < 0) savings = 0;
             localStorage.setItem('savings', savings.toString());
             localStorage.setItem('savingsHistory', JSON.stringify(sh));
@@ -3779,59 +3819,7 @@ function switchAnalysisChart(chartType) {
     }
 }
 
-// NOTE: init() is called by firebase-auth-guard.js after cloud data loads.
-// Do NOT add a DOMContentLoaded listener here to avoid double initialization.
-function init() {
-    try {
-        // Set Chart.js defaults for dark theme
-        if (typeof Chart !== 'undefined') {
-            Chart.defaults.color = '#ffffff';
-            Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.1)';
-        }
-
-        const today = new Date();
-
-        if (elements.todayDate) {
-            elements.todayDate.textContent = today.toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-        }
-
-        if (elements.currentMonth) {
-            elements.currentMonth.textContent = today.toLocaleDateString('en-US', {
-                month: 'long',
-                year: 'numeric'
-            });
-        }
-
-        const expenseDateInput = document.getElementById('expense-date');
-        if (expenseDateInput) {
-            expenseDateInput.value = today.toISOString().split('T')[0];
-        }
-
-        loadCustomCategories();
-        setupEventListeners();
-
-        // Add listener for PDF download button
-        const downloadPdfBtn = document.getElementById('download-pdf-btn');
-        if (downloadPdfBtn) {
-            downloadPdfBtn.addEventListener('click', downloadHistoryAsPDF);
-        }
-        updateUI();
-
-        if (expenses.length === 0 && income === 0) {
-            setTimeout(() => {
-                showToast('Welcome! Start by adding some income and expenses.');
-            }, 1000);
-        }
-    } catch (error) {
-        console.error('Error initializing app:', error);
-    }
-}
-window.init = init; // explicitly expose to window just in case
+window.init = init; // explicitly expose init to window just in case
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3990,28 +3978,19 @@ function loadNotes() {
     container.innerHTML = notes.slice().reverse().map(note => {
         const dateStr = new Date(note.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         const isAmountType = note.type === 'amount';
-        
+        const amountHtml = isAmountType ? `<div class="note-amount">₹${parseFloat(note.amount || 0).toFixed(2)}</div>` : '';
+
         return `
-            <div class="p-4 bg-white rounded-xl border ${isAmountType ? 'border-red-100' : 'border-amber-100'} shadow-sm hover:shadow-md transition-all duration-300 group relative" style="border-left: 4px solid ${isAmountType ? '#ef4444' : '#f59e0b'};">
+            <div class="note-item p-4 rounded-xl border shadow-sm hover:shadow-md transition-all duration-300 group relative" data-type="${isAmountType ? 'amount' : 'text'}">
                 <div class="flex justify-between items-start gap-3">
                     <div class="flex-1">
-                        ${isAmountType ? `<div class="text-lg font-bold text-red-500 mb-1">₹${parseFloat(note.amount || 0).toFixed(2)}</div>` : ''}
-                        <p class="text-gray-800 text-sm whitespace-pre-wrap">${note.text}</p>
-                        <p class="text-xs text-gray-400 mt-2 flex items-center gap-1">
-                            <i class="fas fa-clock"></i> ${dateStr} ${isAmountType ? '<span class="ml-2 px-2 py-0.5 bg-red-50 text-red-500 rounded text-[10px] font-medium">AMOUNT NOTE</span>' : ''}
-                        </p>
+                        ${amountHtml}
+                        <p class="note-body text-sm whitespace-pre-wrap">${note.text}</p>
+                        <p class="note-meta text-xs mt-2 flex items-center gap-1"><i class="fas fa-clock"></i> ${dateStr} ${isAmountType ? '<span class="note-badge">AMOUNT NOTE</span>' : ''}</p>
                     </div>
-                    <div class="flex flex-col gap-2 opacity-100 sm:opacity-50 sm:group-hover:opacity-100 transition-opacity">
-                        <button onclick="editNote(${note.id})" 
-                            class="w-12 h-12 flex items-center justify-center rounded-full bg-blue-50 text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-all shadow-sm"
-                            title="Edit note">
-                            <i class="fas fa-edit text-lg"></i>
-                        </button>
-                        <button onclick="deleteNote(${note.id})" 
-                            class="w-12 h-12 flex items-center justify-center rounded-full bg-purple-50 text-purple-500 hover:bg-purple-100 hover:text-purple-700 transition-all shadow-sm"
-                            title="Delete note">
-                            <i class="fas fa-trash text-lg"></i>
-                        </button>
+                    <div class="note-actions flex flex-col gap-2 opacity-100 sm:opacity-50 sm:group-hover:opacity-100 transition-opacity">
+                        <button onclick="editNote(${note.id})" class="note-action note-edit" title="Edit note"><i class="fas fa-edit text-lg"></i></button>
+                        <button onclick="deleteNote(${note.id})" class="note-action note-delete" title="Delete note"><i class="fas fa-trash text-lg"></i></button>
                     </div>
                 </div>
             </div>
@@ -4106,8 +4085,9 @@ function handleMoveToSavings() {
     const entry = {
         id: Date.now(),
         amount: amount,
-        type: 'deposit',
+        type: 'savings-add',
         source: `Transferred from ${source === 'online' ? 'Online' : 'Cash'}`,
+        description: `Transferred from ${source === 'online' ? 'Online' : 'Cash'}`,
         date: new Date().toISOString()
     };
     savingsHistory.push(entry);
@@ -4116,7 +4096,7 @@ function handleMoveToSavings() {
     // Sync to Firestore
     const uid = _uid();
     if (uid && window.FS) {
-        window.FS.saveProfile(uid, { onlineIncome, cashIncome, savings });
+        window.FS.saveUserTotals(uid, { onlineIncome, cashIncome, savings });
         window.FS.saveSavingsEntry(uid, entry);
     }
 
@@ -4137,9 +4117,29 @@ function showFromSavingsForm() {
     const fromSavingsForm = document.getElementById('from-savings-form');
     if (!fromSavingsForm) return;
 
+    // Make sure the latest balances are synced before showing the transfer form.
+    syncBalancesFromStorage();
+
     // Hide regular income form, show from-savings form
     if (incomeForm) incomeForm.classList.add('hidden');
     fromSavingsForm.classList.remove('hidden');
+
+    // Ensure the selected destination button state is synced
+    const destTypeInput = document.getElementById('savings-dest-type');
+    const dest = destTypeInput ? destTypeInput.value || 'online' : 'online';
+    selectSavingsDest(dest);
+
+    // Animate the buttons and transfer action
+    const onlineBtn = document.getElementById('savings-to-online-btn');
+    const cashBtn = document.getElementById('savings-to-cash-btn');
+    const transferBtn = document.querySelector('#from-savings-form button[type="submit"]');
+    [onlineBtn, cashBtn, transferBtn].forEach(el => {
+        if (el) {
+            el.classList.remove('animate-pop');
+            void el.offsetWidth;
+            el.classList.add('animate-pop');
+        }
+    });
 
     // Update balance display
     const balEl = document.getElementById('from-savings-balance');
@@ -4148,8 +4148,16 @@ function showFromSavingsForm() {
 
 function hideFromSavingsForm() {
     const fromSavingsForm = document.getElementById('from-savings-form');
+    const incomeForm = document.getElementById('income-form');
     if (fromSavingsForm) fromSavingsForm.classList.add('hidden');
+    if (incomeForm) incomeForm.classList.remove('hidden');
     document.getElementById('from-savings-amount').value = '';
+}
+
+function syncBalancesFromStorage() {
+    onlineIncome = parseFloat(localStorage.getItem('onlineIncome')) || 0;
+    cashIncome = parseFloat(localStorage.getItem('cashIncome')) || 0;
+    savings = parseFloat(localStorage.getItem('savings')) || 0;
 }
 
 function selectSavingsDest(dest) {
@@ -4157,13 +4165,75 @@ function selectSavingsDest(dest) {
     const cashBtn = document.getElementById('savings-to-cash-btn');
     document.getElementById('savings-dest-type').value = dest;
 
+    const activeClass = ' flex-1 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-all duration-300 savings-dest-btn active';
+    const inactiveClass = ' flex-1 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-all duration-300 savings-dest-btn';
+
     if (dest === 'online') {
-        onlineBtn.className = 'flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-colors savings-dest-btn active';
-        cashBtn.className = 'flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-colors savings-dest-btn';
+        onlineBtn.className = 'flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2' + activeClass;
+        cashBtn.className = 'flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2' + inactiveClass;
     } else {
-        cashBtn.className = 'flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-colors savings-dest-btn active';
-        onlineBtn.className = 'flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-colors savings-dest-btn';
+        cashBtn.className = 'flex-1 bg-green-500 hover:bg-green-600 text-white py-2' + activeClass;
+        onlineBtn.className = 'flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2' + inactiveClass;
     }
+}
+
+
+function handleFromSavingsTransfer(e) {
+    e.preventDefault();
+    syncBalancesFromStorage();
+    const amount = parseFloat(document.getElementById('from-savings-amount').value);
+    const dest = document.getElementById('savings-dest-type').value;
+
+    if (!amount || amount <= 0) {
+        showToast('Please enter a valid amount!');
+        return;
+    }
+
+    if (amount > savings) {
+        showToast(`Insufficient savings! Available: ₹${savings.toFixed(2)}`);
+        return;
+    }
+
+    // Deduct from savings
+    savings -= amount;
+    localStorage.setItem('savings', savings.toString());
+
+    // Add to destination
+    if (dest === 'online') {
+        onlineIncome += amount;
+        localStorage.setItem('onlineIncome', onlineIncome.toString());
+    } else {
+        cashIncome += amount;
+        localStorage.setItem('cashIncome', cashIncome.toString());
+    }
+
+    // Record in savings history as withdrawal
+    const savingsHistory = JSON.parse(localStorage.getItem('savingsHistory') || '[]');
+    const entry = {
+        id: Date.now(),
+        amount: amount,
+        type: 'savings-withdraw',
+        source: `Transferred to ${dest === 'online' ? 'Online' : 'Cash'}`,
+        description: `Transferred to ${dest === 'online' ? 'Online' : 'Cash'}`,
+        date: new Date().toISOString()
+    };
+    savingsHistory.push(entry);
+    localStorage.setItem('savingsHistory', JSON.stringify(savingsHistory));
+
+    // Sync to Firestore
+    const uid = _uid();
+    if (uid && window.FS) {
+        window.FS.saveUserTotals(uid, { onlineIncome, cashIncome, savings });
+        window.FS.saveSavingsEntry(uid, entry);
+    }
+
+    hideFromSavingsForm();
+    hideModal('income');
+    updateUI();
+    loadSavingsGoals();
+    updateAllGoalsProgress();
+
+    showTransferBanner('from-savings', amount, dest);
 }
 
 function handleFromSavingsTransfer(e) {
@@ -4198,9 +4268,10 @@ function handleFromSavingsTransfer(e) {
     const savingsHistory = JSON.parse(localStorage.getItem('savingsHistory')) || [];
     const entry = {
         id: Date.now(),
-        amount: -amount,
-        type: 'withdrawal',
+        amount: amount,
+        type: 'savings-withdraw',
         source: `Transferred to ${dest === 'online' ? 'Online' : 'Cash'}`,
+        description: `Transferred to ${dest === 'online' ? 'Online' : 'Cash'}`,
         date: new Date().toISOString()
     };
     savingsHistory.push(entry);
@@ -4209,7 +4280,7 @@ function handleFromSavingsTransfer(e) {
     // Sync to Firestore
     const uid = _uid();
     if (uid && window.FS) {
-        window.FS.saveProfile(uid, { onlineIncome, cashIncome, savings });
+        window.FS.saveUserTotals(uid, { onlineIncome, cashIncome, savings });
         window.FS.saveSavingsEntry(uid, entry);
     }
 
@@ -4227,40 +4298,6 @@ function handleFromSavingsTransfer(e) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function showTransferBanner(direction, amount, target) {
-    const banner = document.createElement('div');
-    banner.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[100] animate-fade-in';
-
-    if (direction === 'to-savings') {
-        banner.innerHTML = `
-            <div class="flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl border border-purple-200" 
-                 style="background: linear-gradient(135deg, #faf5ff, #e9d5ff); backdrop-filter: blur(10px);">
-                <span class="text-xl">💰</span>
-                <div>
-                    <div class="font-bold text-purple-800 text-sm">Moved to Savings!</div>
-                    <div class="text-purple-600 text-xs">₹${amount.toFixed(2)} from ${target === 'online' ? 'Online' : 'Cash'} → Savings</div>
-                </div>
-                <span class="text-xl">🐷</span>
-            </div>
-        `;
-    } else {
-        banner.innerHTML = `
-            <div class="flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl border border-blue-200" 
-                 style="background: linear-gradient(135deg, #eff6ff, #dbeafe); backdrop-filter: blur(10px);">
-                <span class="text-xl">🐷</span>
-                <div>
-                    <div class="font-bold text-blue-800 text-sm">Withdrawn from Savings!</div>
-                    <div class="text-blue-600 text-xs">₹${amount.toFixed(2)} from Savings → ${target === 'online' ? 'Online' : 'Cash'}</div>
-                </div>
-                <span class="text-xl">💳</span>
-            </div>
-        `;
-    }
-
-    document.body.appendChild(banner);
-    setTimeout(() => {
-        banner.style.transition = 'opacity 0.5s, transform 0.5s';
-        banner.style.opacity = '0';
-        banner.style.transform = 'translate(-50%, -20px)';
-        setTimeout(() => banner.remove(), 500);
-    }, 3000);
+    // Banner removed per user preference. No-op to avoid floating banners.
+    return;
 }

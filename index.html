@@ -801,11 +801,13 @@
                     <label class="block text-sm font-medium mb-2">📥 Transfer to</label>
                     <div class="flex gap-3">
                         <button type="button" id="savings-to-online-btn"
-                            class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-colors savings-dest-btn active">
+                            class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-all duration-300 savings-dest-btn active"
+                            style="transition: transform 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;">
                             <i class="fas fa-credit-card"></i> Online
                         </button>
                         <button type="button" id="savings-to-cash-btn"
-                            class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-colors savings-dest-btn">
+                            class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 rounded-full font-semibold text-sm flex items-center justify-center gap-1 transition-all duration-300 savings-dest-btn"
+                            style="transition: transform 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;">
                             <i class="fas fa-money-bill-wave"></i> Cash
                         </button>
                     </div>
@@ -813,7 +815,8 @@
                 </div>
                 <div class="flex gap-3 mt-4">
                     <button type="button" onclick="hideFromSavingsForm()" class="flex-1 btn btn-secondary">Cancel</button>
-                    <button type="submit" class="flex-1 btn btn-success">
+                    <button type="submit" class="flex-1 btn btn-success transition-all duration-300"
+                        style="transition: transform 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;">
                         <i class="fas fa-exchange-alt"></i> Transfer
                     </button>
                 </div>
@@ -912,6 +915,9 @@
             <span>Me</span>
         </button>
     </nav>
+
+    <!-- Toast notifications -->
+    <div id="toast" class="hidden fixed left-1/2 bottom-6 z-50 rounded-full px-5 py-3 font-medium shadow-xl" style="transform: translateX(-50%) translateY(10px); opacity: 0;"></div>
 
     <!-- Firebase Sync – exposes window.FS with Firestore CRUD operations -->
     <script type="module" src="firebase-sync.js"></script>

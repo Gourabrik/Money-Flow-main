@@ -1,5 +1,5 @@
 {
-  "projects": {},
-  "targets": {},
-  "etags": {}
+  "projects": {
+    "default": "money-flow-7bfb3"
+  }
 }

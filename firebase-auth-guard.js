@@ -3,6 +3,7 @@ import { auth, db } from './firebase.js';
 import {
     onAuthStateChanged,
     signOut
+    , signInAnonymously
 } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-auth.js";
 
 // ── Keys that belong to a specific user (must be cleared on user switch) ─────
@@ -25,6 +26,15 @@ onAuthStateChanged(auth, async (user) => {
         // User logged out – clear their localStorage data
         clearUserLocalStorage();
         localStorage.removeItem('_authUid');
+        const explicitLogout = localStorage.getItem('_explicitLogout') === 'true';
+        if (!explicitLogout) {
+            try {
+                await signInAnonymously(auth);
+                return;
+            } catch (err) {
+                console.warn('[AuthGuard] Anonymous sign-in failed, redirecting to login:', err);
+            }
+        }
         window.location.href = 'login.html';
         return;
     }
@@ -72,10 +82,13 @@ onAuthStateChanged(auth, async (user) => {
             if (isGuest) {
                 localStorage.setItem('_wasGuest', 'true');
                 // Do NOT wipe local storage here! Let guest data persist for the next login.
+                localStorage.removeItem('_explicitLogout');
             } else {
                 clearUserLocalStorage();
                 localStorage.removeItem('_wasGuest');
             }
+
+            localStorage.setItem('_explicitLogout', 'true');
 
             localStorage.removeItem('_authUid');
             await signOut(auth);
@@ -119,6 +132,7 @@ onAuthStateChanged(auth, async (user) => {
 
     // ── Initialize the main app ────────────────────────────────────────────
     if (typeof init === 'function') {
+        localStorage.removeItem('_explicitLogout');
         init();
     } else {
         const waitForInit = setInterval(() => {

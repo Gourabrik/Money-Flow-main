@@ -315,11 +315,261 @@ label {
 .btn-success {
     background: var(--gradient-success);
     color: white;
+    transition: transform 0.22s ease !important, box-shadow 0.22s ease !important, filter 0.22s ease !important, background-color 0.22s ease !important, color 0.22s ease !important;
+    box-shadow: 0 12px 20px rgba(34, 197, 94, 0.25);
+    animation: transfer-button-pop 0.25s ease forwards;
 }
 
 .btn-success:hover {
-    filter: brightness(1.1);
-    transform: translateY(-2px);
+    filter: brightness(1.12);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 18px 28px rgba(34, 197, 94, 0.28);
+}
+
+.btn-success:active {
+    transform: translateY(0) scale(0.96);
+}
+
+.btn-success.animate-pop {
+    animation: transfer-button-pop 0.24s ease-out forwards;
+}
+
+@keyframes transfer-button-pop {
+    0% {
+        transform: scale(0.94);
+        opacity: 0.85;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.btn-success:hover {
+    filter: brightness(1.12);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 18px 28px rgba(34, 197, 94, 0.28);
+}
+
+.btn-success:active {
+    transform: translateY(0) scale(0.98);
+}
+
+.savings-dest-btn {
+    position: relative;
+    overflow: hidden;
+    will-change: transform, box-shadow, opacity;
+    transition-property: transform, background-color, box-shadow, color !important;
+    transition-duration: 0.22s !important;
+    transition-timing-function: ease !important;
+    animation: savings-button-pop 0.25s ease forwards;
+}
+
+.savings-dest-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.22);
+    opacity: 0;
+    transition: opacity 0.22s ease !important, transform 0.22s ease !important;
+    transform: scaleX(0.98) translateY(-3px);
+    pointer-events: none;
+}
+
+.savings-dest-btn:hover {
+    transform: translateY(-2px) scale(1.03) !important;
+}
+
+.savings-dest-btn:hover::after {
+    opacity: 1 !important;
+    transform: scaleX(1) translateY(0) !important;
+}
+
+.savings-dest-btn:active {
+    transform: translateY(0) scale(0.96) !important;
+}
+
+.savings-dest-btn.animate-pop {
+    animation: savings-button-pop 0.24s ease-out forwards;
+}
+
+@keyframes savings-button-pop {
+    0% {
+        transform: scale(0.96);
+        opacity: 0.8;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.savings-dest-btn.active {
+    box-shadow: 0 16px 34px rgba(59, 130, 246, 0.28);
+    transform: translateY(-1px) scale(1.01) !important;
+    animation: savings-dest-glow 2.5s ease-in-out infinite;
+}
+
+/* Hide the global toast element (user requested no toast banner) */
+#toast {
+    display: none !important;
+}
+
+/* Notes section - dark theme to match the app */
+.notes-section,
+.notes-container,
+#notes-modal,
+#notes-list {
+    background: var(--bg-elevated, #0f172a) !important;
+    color: var(--text-primary, #e6eef8) !important;
+}
+
+#notes-textarea {
+    background: var(--bg-input, #0b1220) !important;
+    color: var(--text-primary, #e6eef8) !important;
+    border: 1px solid rgba(255,255,255,0.06) !important;
+    padding: 12px !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+}
+
+.note-item {
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border: 1px solid rgba(255,255,255,0.04);
+    color: var(--text-primary, #e6eef8);
+}
+
+.note-item .note-meta {
+    color: rgba(230,238,248,0.7);
+}
+
+.notes-actions .btn-secondary,
+.notes-actions .btn {
+    background: transparent;
+    color: var(--text-primary, #e6eef8);
+    border: 1px solid rgba(255,255,255,0.06);
+}
+
+/* Notes - remove yellow/amber tint and match dark theme */
+#notes-content h3 .fa-sticky-note { color: var(--accent, #7c3aed); }
+
+/* Replace header New Note button amber gradient with dark-accent variant */
+#new-note-btn {
+    background: linear-gradient(135deg, #4338ca, #7c3aed) !important;
+    color: #fff !important;
+    border: none !important;
+}
+
+/* Note form container - dark card */
+#note-form-container {
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)) !important;
+    border: 1px solid rgba(255,255,255,0.04) !important;
+    box-shadow: 0 8px 20px rgba(2,6,23,0.6) !important;
+}
+
+#note-form-container .bg-white,
+#note-form-container .bg-amber-50 {
+    background: transparent !important;
+}
+
+#note-form-container label,
+#note-form-container .text-gray-700,
+#note-form-container .text-amber-600 {
+    color: var(--text-primary, #e6eef8) !important;
+}
+
+#note-text-input,
+#note-amount-input {
+    background: var(--bg-input, #071226) !important;
+    color: var(--text-primary, #e6eef8) !important;
+    border: 1px solid rgba(255,255,255,0.04) !important;
+}
+
+#note-type-text,
+#note-type-amount {
+    background: transparent !important;
+    color: var(--text-primary, #e6eef8) !important;
+    border: 1px solid rgba(255,255,255,0.04) !important;
+}
+
+/* Notes list - responsive grid */
+#notes-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+}
+
+@media (min-width: 640px) {
+    #notes-list { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 1024px) {
+    #notes-list { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* Note item dark overrides */
+#notes-list > div {
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)) !important;
+    color: var(--text-primary, #e6eef8) !important;
+    border: 1px solid rgba(255,255,255,0.04) !important;
+    box-shadow: 0 6px 18px rgba(2,6,23,0.6) !important;
+    overflow-wrap: anywhere;
+}
+
+/* Force a subtle left accent instead of amber/yellow */
+#notes-list > div[style] {
+    border-left: 4px solid rgba(124,58,237,0.14) !important;
+}
+
+#notes-list p, #notes-list .text-gray-800 { color: var(--text-primary, #e6eef8) !important; }
+#notes-list .text-gray-400 { color: rgba(230,238,248,0.62) !important; }
+
+/* Action buttons (edit/delete) - toned down for dark */
+#notes-list button[title="Edit note"],
+#notes-list button[title="Delete note"] {
+    background: rgba(255,255,255,0.02) !important;
+    color: rgba(230,238,248,0.9) !important;
+    box-shadow: none !important;
+    border: 1px solid rgba(255,255,255,0.03) !important;
+}
+
+/* Make note meta badges subtle */
+#notes-list .bg-red-50, #notes-list .bg-amber-50 { background: rgba(255,255,255,0.02) !important; color: rgba(230,238,248,0.82) !important; border: 1px solid rgba(255,255,255,0.03) !important; }
+
+/* Improve spacing and touch targets on mobile */
+#notes-content { padding: 16px; }
+#note-form-container { padding: 12px; }
+#note-text-input { padding: 12px; font-size: 14px; }
+#note-amount-input { padding: 10px; }
+
+/* Ensure buttons are full-width on small screens */
+#note-form-container .flex .flex-1 { min-width: 0; }
+
+/* Styling for new semantic note markup */
+.note-item { background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)) !important; border: 1px solid rgba(255,255,255,0.04) !important; }
+.note-item[data-type='amount'] { border-left: 4px solid rgba(239,68,68,0.14) !important; }
+.note-item[data-type='text'] { border-left: 4px solid rgba(124,58,237,0.12) !important; }
+.note-amount { color: #ffb4b4; font-weight: 700; margin-bottom: 6px; }
+.note-body { color: var(--text-primary, #e6eef8); }
+.note-meta { color: rgba(230,238,248,0.62); }
+.note-badge { background: rgba(255,255,255,0.02); color: rgba(230,238,248,0.82); border: 1px solid rgba(255,255,255,0.03); padding: 2px 6px; border-radius: 8px; font-size: 10px; margin-left: 8px; }
+.note-action { width: 44px; height: 44px; display:inline-flex; align-items:center; justify-content:center; border-radius:9999px; }
+.note-action.note-edit { background: rgba(255,255,255,0.02); color: rgba(230,238,248,0.9); border:1px solid rgba(255,255,255,0.03); }
+.note-action.note-delete { background: rgba(255,255,255,0.02); color: rgba(230,238,248,0.9); border:1px solid rgba(255,255,255,0.03); }
+
+/* Make note actions easier to tap on small screens */
+@media (max-width: 640px) {
+    .note-action { width: 56px; height: 56px; }
+    .note-item { padding: 16px; }
+}
+
+@keyframes savings-dest-glow {
+    0%, 100% {
+        box-shadow: 0 12px 28px rgba(59, 130, 246, 0.18);
+    }
+    50% {
+        box-shadow: 0 18px 36px rgba(59, 130, 246, 0.28);
+    }
 }
 
 .btn-danger {
