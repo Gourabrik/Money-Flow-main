@@ -941,10 +941,16 @@ function addTestSavingsData() {
 // Reset savings data
 function resetSavingsData() {
     savings = 0;
-    localStorage.removeItem('savings');
-    localStorage.removeItem('savingsHistory');
-    localStorage.removeItem('savingsGoals');
-    localStorage.removeItem('achievements');
+    localStorage.setItem('savings', '0');
+    localStorage.setItem('savingsHistory', JSON.stringify([]));
+    localStorage.setItem('savingsGoals', JSON.stringify([]));
+    localStorage.setItem('achievements', JSON.stringify([]));
+
+    const uid = window._firebaseUser ? window._firebaseUser.uid : null;
+    if (uid && window.FS && typeof window.FS.clearSavingsData === 'function') {
+        window.FS.clearSavingsData(uid);
+    }
+
     updateSavingsUI();
     showToast('All savings data reset!');
 }

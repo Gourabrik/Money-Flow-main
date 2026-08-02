@@ -1245,11 +1245,25 @@ function addTestSavingsData() {
 // Reset savings data
 function resetSavingsData() {
     savings = 0;
-    localStorage.removeItem('savings');
-    localStorage.removeItem('savingsHistory');
-    localStorage.removeItem('savingsGoals');
-    localStorage.removeItem('achievements');
+    localStorage.setItem('savings', '0');
+    localStorage.setItem('savingsHistory', JSON.stringify([]));
+    localStorage.setItem('savingsGoals', JSON.stringify([]));
+    localStorage.setItem('achievements', JSON.stringify([]));
+
+    // Sync deletion to Firestore if authenticated
+    const uid = _uid();
+    if (uid && window.FS) {
+        if (typeof window.FS.clearSavingsData === 'function') {
+            window.FS.clearSavingsData(uid);
+        } else {
+            window.FS.saveUserTotals(uid, { savings: 0 });
+        }
+    }
+
     updateSavingsUI();
+    if (typeof updatePriceHistoryChart === 'function') {
+        updatePriceHistoryChart();
+    }
     showToast('All savings data reset!');
 }
 

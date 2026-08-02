@@ -356,6 +356,27 @@ async function deleteNote(uid, fsId) {
     }
 }
 
+// ── Clear all savings data (reset savings) ─────────────────────────────────
+async function clearSavingsData(uid) {
+    if (!uid) return;
+    try {
+        await setDoc(userRef(uid), { savings: 0 }, { merge: true });
+        const [savSnap, goalSnap, achSnap] = await Promise.all([
+            getDocs(subCol(uid, 'savingsHistory')),
+            getDocs(subCol(uid, 'goals')),
+            getDocs(subCol(uid, 'achievements')),
+        ]);
+        const deletePromises = [];
+        savSnap.docs.forEach(d => deletePromises.push(deleteDoc(d.ref)));
+        goalSnap.docs.forEach(d => deletePromises.push(deleteDoc(d.ref)));
+        achSnap.docs.forEach(d => deletePromises.push(deleteDoc(d.ref)));
+        await Promise.all(deletePromises);
+        console.log('[FS] clearSavingsData successfully cleared Firestore savings data for user:', uid);
+    } catch (err) {
+        console.warn('[FS] clearSavingsData error:', err);
+    }
+}
+
 // ── Expose everything globally via window.FS ──────────────────────────────
 window.FS = {
     loadAll,
@@ -376,6 +397,7 @@ window.FS = {
     deleteAchievement,
     saveNote,
     deleteNote,
+    clearSavingsData,
     startRealtimeSync,
 };
 
