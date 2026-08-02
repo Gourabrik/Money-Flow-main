@@ -1,3 +1,23 @@
+// ── One-time migration: fix savingsHistory in localStorage ──────────────────
+(function migrateSavingsHistory() {
+    try {
+        const raw = JSON.parse(localStorage.getItem('savingsHistory') || '[]');
+        let changed = false;
+        const fixed = raw.map(entry => {
+            const e = Object.assign({}, entry);
+            // Fix legacy type names
+            if (e.type === 'deposit')    { e.type = 'savings-add';      changed = true; }
+            if (e.type === 'withdrawal') { e.type = 'savings-withdraw';  changed = true; }
+            // Ensure amount is always a positive number
+            if (typeof e.amount === 'number' && e.amount < 0) { e.amount = Math.abs(e.amount); changed = true; }
+            // Normalize date to YYYY-MM-DD (trim ISO timestamps)
+            if (e.date && e.date.length > 10) { e.date = e.date.substring(0, 10); changed = true; }
+            return e;
+        });
+        if (changed) localStorage.setItem('savingsHistory', JSON.stringify(fixed));
+    } catch(err) { /* silent fail */ }
+})();
+
 // ── Initialize data (falls back to localStorage; cloud data injected by firebase-auth-guard.js) ──
 let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
 let income = parseFloat(localStorage.getItem('income')) || 0;
@@ -1799,28 +1819,36 @@ function updateSavingsChart() {
         savingsChartInstance.destroy();
     }
 
-    // Sort by actual timestamp so same-day entries are in correct order
-    savingsHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
+    // Sort by id (Date.now() at creation) to get correct insertion order
+    savingsHistory.sort((a, b) => (a.id || 0) - (b.id || 0));
 
-    // Group by YYYY-MM-DD: one chart point per day showing end-of-day running balance
+    // Count entries per date to decide label style
+    const perDateCount = {};
+    savingsHistory.forEach(item => {
+        const dk = (item.date || '').substring(0, 10) || getCurrentDateString();
+        perDateCount[dk] = (perDateCount[dk] || 0) + 1;
+    });
+
+    // Plot EVERY transaction as its own point so full progression is visible (1000→900→800→300)
+    const labels = [];
+    const data = [];
     let runningBal = 0;
-    const dailyBalance = {};
-    const dateOrder = [];
+    const dateIndexTracker = {};
+
     savingsHistory.forEach(item => {
         const dateKey = (item.date || '').substring(0, 10) || getCurrentDateString();
         const isDeposit = item.type === 'savings-add' || item.type === 'deposit';
         runningBal += isDeposit ? Math.abs(item.amount) : -Math.abs(item.amount);
         runningBal = Math.max(0, runningBal);
-        if (!dailyBalance[dateKey]) dateOrder.push(dateKey);
-        dailyBalance[dateKey] = runningBal;
-    });
+        data.push(runningBal);
 
-    const labels = dateOrder.map(d => {
-        const [yr, mo, da] = d.split('-');
-        return new Date(parseInt(yr), parseInt(mo) - 1, parseInt(da))
+        // Smart label: "Aug 3 #1", "Aug 3 #2" when multiple on same day, else just "Aug 3"
+        dateIndexTracker[dateKey] = (dateIndexTracker[dateKey] || 0) + 1;
+        const [yr, mo, da] = dateKey.split('-');
+        const dateLabel = new Date(parseInt(yr), parseInt(mo) - 1, parseInt(da))
             .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        labels.push(perDateCount[dateKey] > 1 ? dateLabel + ' #' + dateIndexTracker[dateKey] : dateLabel);
     });
-    const data = dateOrder.map(d => dailyBalance[d]);
 
     if (!elements.savingsChart) return;
 
@@ -2115,9 +2143,21 @@ function switchHistoryFilter(filter) {
     updatePriceHistoryChart();
 }
 
+// Parse date string (YYYY-MM-DD or ISO) safely avoiding timezone offset shifts
+function parseLocalDate(dateString) {
+    if (!dateString) return new Date();
+    const cleanStr = String(dateString).substring(0, 10);
+    const parts = cleanStr.split('-');
+    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+        return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    }
+    const d = new Date(dateString);
+    return isNaN(d.getTime()) ? new Date() : d;
+}
+
 // Get Monday of a given date's week (ISO week start)
 function getWeekStart(dateStr) {
-    const d = new Date(dateStr);
+    const d = parseLocalDate(dateStr);
     const day = d.getDay(); // 0=Sun, 1=Mon ...
     const diff = (day === 0 ? -6 : 1 - day); // adjust to Monday
     d.setDate(d.getDate() + diff);
@@ -2131,10 +2171,10 @@ function getWeekStart(dateStr) {
 function formatGroupLabel(key, filter) {
     if (filter === 'monthly') {
         const [yr, mo] = key.split('-');
-        const d = new Date(parseInt(yr), parseInt(mo) - 1, 1);
+        const d = new Date(parseInt(yr, 10), parseInt(mo, 10) - 1, 1);
         return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
     } else if (filter === 'weekly') {
-        const d = new Date(key);
+        const d = parseLocalDate(key);
         return 'Wk of ' + d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
     }
     return formatDate(key); // per-day label
@@ -2152,19 +2192,21 @@ function updatePriceHistoryChart() {
     if (elements.historyChartEmpty) elements.historyChartEmpty.classList.add('hidden');
 
     // Sort oldest first
-    transactions.sort((a, b) => new Date(a.date || getCurrentDateString()) - new Date(b.date || getCurrentDateString()));
+    transactions.sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
 
     // Group by selected filter
     const groupedData = {};
     transactions.forEach(item => {
         const rawDate = item.date || getCurrentDateString();
+        // Always normalize date to YYYY-MM-DD to correctly group savings ISO timestamps
+        const normDate = rawDate.substring(0, 10);
         let key;
         if (currentHistoryFilter === 'weekly') {
-            key = getWeekStart(rawDate);
+            key = getWeekStart(normDate);
         } else if (currentHistoryFilter === 'monthly') {
-            key = rawDate.slice(0, 7); // YYYY-MM
+            key = normDate.slice(0, 7); // YYYY-MM
         } else {
-            key = rawDate; // per-day
+            key = normDate; // per-day YYYY-MM-DD
         }
 
         if (!groupedData[key]) groupedData[key] = { income: 0, expense: 0, savings: 0 };
@@ -2428,6 +2470,30 @@ function getTypeText(type) {
     }
 }
 
+// Helper to sanitize strings for jsPDF standard fonts (removes emojis/non-ASCII symbols)
+function cleanPdfText(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/₹/g, 'Rs. ')
+        .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+        .replace(/[^\x00-\x7F]/g, '')
+        .trim();
+}
+
+// Function to format date for display using parseLocalDate
+function formatDate(dateString) {
+    if (!dateString) return getCurrentDateString();
+    const date = parseLocalDate(dateString);
+    if (isNaN(date.getTime())) {
+        return getCurrentDateString();
+    }
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    });
+}
+
 function getAmountClass(type) {
     switch (type) {
         case 'income': return 'text-green-600';
@@ -2447,24 +2513,6 @@ function getAmountText(type, amount) {
         case 'savings-withdraw': case 'withdrawal': return '-₹' + abs.toFixed(2);
         default: return '₹' + abs.toFixed(2);
     }
-}
-
-// Function to format date for display
-function formatDate(dateString) {
-    // Handle invalid or missing dates
-    if (!dateString) return getCurrentDateString();
-
-    const date = new Date(dateString);
-    // Check if date is valid
-    if (isNaN(date.getTime())) {
-        return getCurrentDateString();
-    }
-
-    return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-    });
 }
 
 // Function to format date to ISO format
@@ -2493,22 +2541,30 @@ function downloadHistoryAsPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
+    if (typeof doc.autoTable !== 'function') {
+        showToast('PDF table extension is still loading. Please try again in a moment.', 'error');
+        return;
+    }
+
     // Build full transaction list from current session data (loaded from Firestore)
     const transactions = getAllTransactions();
-    transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+    transactions.sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
 
     if (transactions.length === 0) {
         showToast('No transactions to export yet.', 'error');
         return;
     }
 
-    const user         = window._firebaseUser;
-    const userName     = user ? (user.isAnonymous ? 'Guest User' : (user.displayName || user.email || 'User')) : 'User';
-    const generatedAt  = new Date().toLocaleString();
-    const totalIncome  = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const totalExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    const totalSavings = transactions.filter(t => t.type === 'savings-add').reduce((s, t) => s + t.amount, 0);
-    const netBalance   = totalIncome - totalExpense;
+    const user                 = window._firebaseUser;
+    const rawUserName          = user ? (user.isAnonymous ? 'Guest User' : (user.displayName || user.email || 'User')) : 'User';
+    const userName             = cleanPdfText(rawUserName) || 'User';
+    const generatedAt          = cleanPdfText(new Date().toLocaleString());
+    const totalIncome          = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const totalExpense         = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const totalSavingsAdd      = transactions.filter(t => t.type === 'savings-add' || t.type === 'deposit').reduce((s, t) => s + t.amount, 0);
+    const totalSavingsWithdraw = transactions.filter(t => t.type === 'savings-withdraw' || t.type === 'withdrawal').reduce((s, t) => s + t.amount, 0);
+    const totalSavings         = Math.max(0, totalSavingsAdd - totalSavingsWithdraw);
+    const netBalance           = totalIncome - totalExpense;
 
     // Header
     doc.setFontSize(22);
@@ -2572,10 +2628,12 @@ function downloadHistoryAsPDF() {
         const amountSign = isCredit ? '+' : '-';
         const formattedAmount = `${amountSign} ${Math.abs(t.amount).toFixed(2)}`;
 
+        const cleanDesc = cleanPdfText(t.description) || '-';
+
         tableRows.push([
             formatDate(t.date),
             typeStr,
-            t.description || '-',
+            cleanDesc,
             formattedAmount
         ]);
     });
@@ -2605,7 +2663,11 @@ function downloadHistoryAsPDF() {
     });
 
     // Footer
-    const finalY = doc.lastAutoTable.finalY || 65;
+    let finalY = (doc.lastAutoTable && doc.lastAutoTable.finalY) ? doc.lastAutoTable.finalY : 65;
+    if (finalY + 15 > 280) {
+        doc.addPage();
+        finalY = 15;
+    }
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184); // slate-400
     doc.text(`MoneyFlow Report - Generated on ${generatedAt}`, 14, finalY + 10);
@@ -4209,63 +4271,6 @@ function handleFromSavingsTransfer(e) {
 
     // Record in savings history as withdrawal
     const savingsHistory = JSON.parse(localStorage.getItem('savingsHistory') || '[]');
-    const entry = {
-        id: Date.now(),
-        amount: amount,
-        type: 'savings-withdraw',
-        source: `Transferred to ${dest === 'online' ? 'Online' : 'Cash'}`,
-        description: `Transferred to ${dest === 'online' ? 'Online' : 'Cash'}`,
-        date: new Date().toISOString()
-    };
-    savingsHistory.push(entry);
-    localStorage.setItem('savingsHistory', JSON.stringify(savingsHistory));
-
-    // Sync to Firestore
-    const uid = _uid();
-    if (uid && window.FS) {
-        window.FS.saveUserTotals(uid, { onlineIncome, cashIncome, savings });
-        window.FS.saveSavingsEntry(uid, entry);
-    }
-
-    hideFromSavingsForm();
-    hideModal('income');
-    updateUI();
-    loadSavingsGoals();
-    updateAllGoalsProgress();
-
-    showTransferBanner('from-savings', amount, dest);
-}
-
-function handleFromSavingsTransfer(e) {
-    e.preventDefault();
-    const amount = parseFloat(document.getElementById('from-savings-amount').value);
-    const dest = document.getElementById('savings-dest-type').value;
-
-    if (!amount || amount <= 0) {
-        showToast('Please enter a valid amount!');
-        return;
-    }
-
-    if (amount > savings) {
-        showToast(`Insufficient savings! Available: ₹${savings.toFixed(2)}`);
-        return;
-    }
-
-    // Deduct from savings
-    savings -= amount;
-    localStorage.setItem('savings', savings);
-
-    // Add to destination
-    if (dest === 'online') {
-        onlineIncome += amount;
-        localStorage.setItem('onlineIncome', onlineIncome);
-    } else {
-        cashIncome += amount;
-        localStorage.setItem('cashIncome', cashIncome);
-    }
-
-    // Record in savings history as withdrawal
-    const savingsHistory = JSON.parse(localStorage.getItem('savingsHistory')) || [];
     const entry = {
         id: Date.now(),
         amount: amount,
