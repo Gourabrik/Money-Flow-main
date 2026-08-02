@@ -321,6 +321,15 @@ async function saveAchievement(uid, achievement) {
     }
 }
 
+async function deleteAchievement(uid, fsId) {
+    if (!fsId) return;
+    try {
+        await deleteDoc(doc(subCol(uid, 'achievements'), fsId));
+    } catch (err) {
+        console.warn('[FS] deleteAchievement error:', err);
+    }
+}
+
 // ── Notes operations ───────────────────────────────────────────────────────
 async function saveNote(uid, note) {
     try {
@@ -364,6 +373,7 @@ window.FS = {
     saveGoal,
     deleteGoal,
     saveAchievement,
+    deleteAchievement,
     saveNote,
     deleteNote,
     startRealtimeSync,

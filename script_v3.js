@@ -1491,18 +1491,23 @@ function showAchievementBanner(goal) {
              style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); backdrop-filter: blur(10px);">
             <span class="text-2xl">🏆</span>
             <div>
-                <div class="font-bold text-green-800 text-sm">Goal Achieved!</div>
-                <div class="text-green-600 text-xs">${goal.description} — ₹${goal.amount.toLocaleString()}</div>
+                <div class="font-bold text-green-800 text-sm">${goal.description}</div>
+                <div class="text-green-600 text-xs">Completed ₹${goal.amount.toLocaleString()} savings goal</div>
             </div>
             <span class="text-2xl">🎉</span>
+            <button onclick="this.closest('.fixed').remove()" class="ml-2 w-6 h-6 flex items-center justify-center rounded-full bg-green-200/50 hover:bg-red-100 text-green-800 hover:text-red-600 transition-all" title="Dismiss">
+                <i class="fas fa-times text-xs"></i>
+            </button>
         </div>
     `;
     document.body.appendChild(banner);
     setTimeout(() => {
-        banner.style.transition = 'opacity 0.5s, transform 0.5s';
-        banner.style.opacity = '0';
-        banner.style.transform = 'translate(-50%, -20px)';
-        setTimeout(() => banner.remove(), 500);
+        if (document.body.contains(banner)) {
+            banner.style.transition = 'opacity 0.5s, transform 0.5s';
+            banner.style.opacity = '0';
+            banner.style.transform = 'translate(-50%, -20px)';
+            setTimeout(() => { if (document.body.contains(banner)) banner.remove(); }, 500);
+        }
     }, 3000);
 }
 
@@ -1522,10 +1527,12 @@ function showRejectionBanner(goal) {
     `;
     document.body.appendChild(banner);
     setTimeout(() => {
-        banner.style.transition = 'opacity 0.5s, transform 0.5s';
-        banner.style.opacity = '0';
-        banner.style.transform = 'translate(-50%, -20px)';
-        setTimeout(() => banner.remove(), 500);
+        if (document.body.contains(banner)) {
+            banner.style.transition = 'opacity 0.5s, transform 0.5s';
+            banner.style.opacity = '0';
+            banner.style.transform = 'translate(-50%, -20px)';
+            setTimeout(() => { if (document.body.contains(banner)) banner.remove(); }, 500);
+        }
     }, 2500);
 }
 
@@ -1538,7 +1545,7 @@ function addAchievements(newGoals) {
         const newAchievement = {
             id: Date.now() + Math.random(),
             type: 'goal_completed',
-            title: `Goal Achieved: ${goal.description}`,
+            title: goal.description,
             description: `Completed ₹${goal.amount.toLocaleString()} savings goal`,
             date: new Date().toISOString(),
             icon: 'trophy',
@@ -1562,7 +1569,7 @@ function addAchievements(newGoals) {
     localStorage.setItem('achievements', JSON.stringify(achievements));
 }
 
-// Load achievements — compact, clean badge style
+// Load achievements — compact, clean badge style with delete button
 function loadAchievements() {
     const achievements = JSON.parse(localStorage.getItem('achievements')) || [];
 
@@ -1572,15 +1579,43 @@ function loadAchievements() {
     }
 
     elements.achievements.classList.remove('hidden');
-    elements.achievementsList.innerHTML = achievements.slice(-5).reverse().map(achievement => `
-        <div class="flex items-center gap-2 px-3 py-1.5 rounded-full border border-yellow-200 text-xs" style="background: linear-gradient(135deg, #fefce8, #fef9c3);">
-            <i class="fas fa-${achievement.icon} text-yellow-500 text-xs"></i>
-            <span class="font-semibold text-yellow-800">${achievement.title}</span>
-            <span class="text-yellow-500 opacity-60">·</span>
-            <span class="text-yellow-600">${new Date(achievement.date).toLocaleDateString()}</span>
-        </div>
-    `).join('');
+    elements.achievementsList.innerHTML = achievements.slice(-5).reverse().map(achievement => {
+        const displayTitle = (achievement.title || '').replace(/^Goal Achieved:\s*/i, '');
+        const idVal = achievement.id || achievement._fsId;
+        return `
+            <div class="flex items-center justify-between gap-2 px-3 py-1.5 rounded-full border border-yellow-200 text-xs shadow-sm hover:shadow transition-all" style="background: linear-gradient(135deg, #fefce8, #fef9c3);">
+                <div class="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
+                    <i class="fas fa-${achievement.icon || 'trophy'} text-yellow-500 text-xs flex-shrink-0"></i>
+                    <span class="font-semibold text-yellow-800 truncate">${displayTitle}</span>
+                    <span class="text-yellow-500 opacity-60 flex-shrink-0">·</span>
+                    <span class="text-yellow-600 text-[10px] flex-shrink-0">${new Date(achievement.date).toLocaleDateString()}</span>
+                </div>
+                <button onclick="deleteAchievement('${idVal}')" class="w-5 h-5 flex items-center justify-center rounded-full text-yellow-700 hover:text-red-600 hover:bg-red-100 transition-all flex-shrink-0" title="Delete achievement">
+                    <i class="fas fa-trash text-[10px]"></i>
+                </button>
+            </div>
+        `;
+    }).join('');
 }
+
+// Delete achievement
+function deleteAchievement(achievementId) {
+    if (!confirm('Are you sure you want to delete this achievement?')) return;
+
+    let achievements = JSON.parse(localStorage.getItem('achievements')) || [];
+    const toDelete = achievements.find(a => a.id == achievementId || a._fsId == achievementId);
+    achievements = achievements.filter(a => a.id != achievementId && a._fsId != achievementId);
+    localStorage.setItem('achievements', JSON.stringify(achievements));
+
+    const uid = _uid();
+    if (uid && window.FS && toDelete && toDelete._fsId) {
+        window.FS.deleteAchievement(uid, toDelete._fsId);
+    }
+
+    loadAchievements();
+    showToast('Achievement deleted!');
+}
+window.deleteAchievement = deleteAchievement;
 
 // Delete goal
 function deleteGoal(goalId) {
